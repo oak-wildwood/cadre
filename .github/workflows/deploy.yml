@@ -1,7 +1,8 @@
 name: Deploy
 
-# Publishes the public brochure/landing build to the gh-pages branch, served by
-# GitHub Pages at https://oak-wildwood.github.io/cadre/. See
+# Publishes the public brochure/landing build to GitHub Pages via GitHub's
+# native Actions-based deployment (Settings → Pages → source: "GitHub
+# Actions") — no gh-pages branch involved. See
 # docs/decisions/0004-public-site-hosting.md — this only ever covers the
 # public brochure content, never the functional ledger UI.
 
@@ -11,14 +12,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -47,11 +50,21 @@ jobs:
           # build (self-hosted deploys serve from root).
           VITE_BASE_PATH: /cadre/
 
-      - name: Disable Jekyll processing
-        run: touch dist/.nojekyll
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
-      - name: Deploy to gh-pages
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          branch: gh-pages
-          folder: dist
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
