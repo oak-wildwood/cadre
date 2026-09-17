@@ -46,7 +46,10 @@ here so the issue that adds the first PGlite or WebCrypto test doesn't have to r
 
 ## Layout
 
-- `src/app/` — Vue components.
+- `src/app/` — Vue components. `App.vue` is the app root and currently _is_ the whole app: a
+  static, public landing page (what Cadre is, who it's for, and how to run it). It has no
+  store/repository access, no auth and collects nothing from visitors. Once real app views
+  exist, this content moves behind routing rather than being replaced by it.
 - `src/domain/` — types and the storage-repository interface.
 - `src/storage/` — repository implementations (PGlite, Postgres).
 - `src/crypto/` — thin wrappers around libsodium / WebCrypto / `age` / OpenBao transit only.
