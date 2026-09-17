@@ -53,3 +53,17 @@ here so the issue that adds the first PGlite or WebCrypto test doesn't have to r
 - `src/domain/` — types and the storage-repository interface.
 - `src/storage/` — repository implementations (PGlite, Postgres).
 - `src/crypto/` — thin wrappers around libsodium / WebCrypto / `age` / OpenBao transit only.
+
+## Public site deployments
+
+The brochure/landing site's production copy is `main` built by the GitHub Pages workflow —
+that's the source of truth for what's publicly live.
+
+Vercel is connected only for pull request previews: its GitHub integration builds each PR and
+comments the preview URL, so brochure changes can be reviewed visually before merge. Vercel
+deploys of `main` are disabled on purpose (`vercel.json`), so Vercel and GitHub Pages never both
+claim to be "production" for the same branch. Preview builds carry the same scope limit as the
+GitHub Pages build: only the brochure/landing content, not the functional ledger UI.
+
+See [`docs/decisions/0004-public-site-hosting.md`](decisions/0004-public-site-hosting.md) for
+the reasoning.
