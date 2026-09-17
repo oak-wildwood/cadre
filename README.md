@@ -1,5 +1,7 @@
 # Cadre
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
 A self-hostable, local-first membership ledger for small organizations that cannot afford to
 leak their member list: mutual aid groups, tenant unions, organizing committees, small
 newsrooms.
@@ -46,4 +48,11 @@ Helm + kind (local cluster) · GitHub Actions · OpenTofu (AWS templates).
 ## Contributing
 
 Work is tracked as GitHub issues grouped by milestone. Read [AGENTS.md](AGENTS.md) for the
-rules that apply to every change, human- or agent-authored.
+rules that apply to every change, human- or agent-authored, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to sign off commits.
+
+## License
+
+[GNU AGPL-3.0](LICENSE) — see [docs/decisions/0002-license.md](docs/decisions/0002-license.md)
+for why. Network-served modifications must publish their source (AGPL §13); this closes off a
+hosted fork by an untrusted party quietly running a backdoored Cadre.
