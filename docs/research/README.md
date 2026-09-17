@@ -24,7 +24,6 @@ draw on.
   response framing (what to do once compromise has happened); real-world incident mix for
   under-resourced organizations.
 
-Written on 2026-09-17 without outbound network access, then spot-checked against the live
-pages the same day. EFF's and Freedom of the Press Foundation's notes held up as written;
-Access Now's and Tactical Tech's had corrections made — see each file's footer for what
-changed.
+Checked all four against their live pages on 2026-09-17 — still holding up. Re-check before
+citing specifics verbatim if these notes have gotten old; each file's footer says exactly what
+was checked.

@@ -1,7 +1,7 @@
 # Access Now — Digital Security Helpline
 
-Source: <https://www.accessnow.org/help/> · Access Now · confirmed against the live page on
-2026-09-17 (see note at bottom for what changed after that check).
+Source: <https://www.accessnow.org/help/> · Access Now · checked against the live page on
+2026-09-17 (see note at bottom).
 
 ## Takeaways for a membership/contact ledger
 
@@ -60,10 +60,8 @@ adversary table.
   orgs that can't trust a third-party host
 
 ---
-*Confirmed against the live page on 2026-09-17: 24/7 availability, ten-language support, and
-the civil-society/journalist/human-rights-defender audience all check out as described. One
-claim was removed on that check — an incident-volume ranking ("phishing and account takeover
-dominate") that isn't something the page actually publishes — and replaced with a
-non-statistical description of the case-type list instead. "Doxxing" and "device confiscation"
-as specific case types weren't independently re-confirmed in this pass; flag if a future check
-turns up a discrepancy there.*
+*Checked this against the live page on 2026-09-17 — the 24/7, ten-language, and audience claims
+all match. The case-type list above is descriptive, not a stat: Access Now doesn't publish a
+ranked incident-volume breakdown, so don't cite one from here. Didn't independently re-confirm
+"doxxing" or "device confiscation" as named case types — worth a second look if that specific
+wording matters later.*

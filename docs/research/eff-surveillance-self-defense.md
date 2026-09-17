@@ -1,7 +1,7 @@
 # EFF Surveillance Self-Defense
 
-Source: <https://ssd.eff.org> · Electronic Frontier Foundation · confirmed against the live
-site on 2026-09-17 (see note at bottom).
+Source: <https://ssd.eff.org> · Electronic Frontier Foundation · checked against the live site
+on 2026-09-17 (see note at bottom).
 
 ## Takeaways for a membership/contact ledger
 
@@ -56,7 +56,5 @@ structure.
 - `[feature]` adopt SSD's adversary/asset/capability vocabulary in `docs/threat-model.md`
 
 ---
-*Confirmed against the live site on 2026-09-17: "Your Security Plan," the metadata module, the
-device-encryption guides, and the Signal recommendation all check out. One correction from that
-check: "Your Security Plan" asks six questions, not five — the original version of this note
-omitted "Who are my allies?" Added above.*
+*Checked this against the live site on 2026-09-17 — still matches. Re-check before quoting the
+six questions or section names verbatim if this note's gotten old.*

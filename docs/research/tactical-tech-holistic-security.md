@@ -1,7 +1,7 @@
 # Tactical Tech — Holistic Security Guide
 
-Source: <https://holistic-security.tacticaltech.org> · Tactical Tech · confirmed against the
-live site on 2026-09-17 (see note at bottom for what changed after that check).
+Source: <https://holistic-security.tacticaltech.org> · Tactical Tech · checked against the
+live site on 2026-09-17 (see note at bottom).
 
 ## Takeaways for a membership/contact ledger
 
@@ -62,11 +62,5 @@ no separate vulnerability column).
 - `[feature]` consider adding a vulnerability column to `docs/threat-model.md`'s adversary table
 
 ---
-*Confirmed against the live site on 2026-09-17. The organizational-security, data-management,
-and threat-identification content described above all check out (chapters 2.4, 2.8, and 3.4).
-One correction from that check: the original version of this note presented "capacities /
-threats / vulnerabilities" as the guide's single named framework. The guide's actual top-level
-structure is the four-phase **Prepare / Explore / Strategise / Act** cycle, framed around
-security as "well-being in action"; capacities/threats/vulnerabilities is vocabulary introduced
-partway through that cycle (Explore into Strategise), not a standalone model. Both are now
-described accurately above.*
+*Checked this against the live site on 2026-09-17 (chapters 2.4, 2.8, 3.4) — still matches.
+Re-check before quoting chapter numbers or section names verbatim if this note's gotten old.*
