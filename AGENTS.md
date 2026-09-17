@@ -68,6 +68,13 @@ that each phase leaves a coherent, shippable project.
 **Out of scope for this project, and stated openly:** metadata/contact-graph analysis,
 network-level anonymity, endpoint malware. Don't add features that imply otherwise.
 
+### Every commit is signed off
+
+Cadre takes contributions under the DCO, not a CLA (see `CONTRIBUTING.md`). Commit with
+`git commit -s`, not plain `git commit` — `-s` appends the `Signed-off-by` trailer
+automatically from your git identity. `dco.yml` enforces this on every commit in a PR and
+blocks the merge otherwise; don't treat "commit" as done without it.
+
 ### PR titles become commit messages
 
 This repo squash-merges, and the squashed commit takes the **PR title** as its subject with an

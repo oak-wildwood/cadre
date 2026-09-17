@@ -11,3 +11,6 @@ Claude-specific:
 - Before running `gh pr create`, count the title. `pr-title.yml` requires 66 characters or fewer
   (see AGENTS.md) and blocks the merge otherwise — check it yourself rather than relying on CI to
   catch it, since a failing check can still be bypassed and merged by an admin.
+- Every `git commit` needs `-s` (see AGENTS.md). After committing, actually run `gh pr create`
+  rather than leaving a "Create PR" link and marking the task done anyway — a run on 2026-09-17
+  did exactly that, self-reported the checklist item as complete, and left the PR unopened.
