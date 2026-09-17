@@ -3,6 +3,7 @@ const repoUrl = 'https://github.com/oak-wildwood/cadre'
 </script>
 
 <template>
+  <div class="preview-banner">🔺 Vercel preview check — this banner should not exist on main</div>
   <main class="landing">
     <header class="hero">
       <h1>Cadre</h1>
@@ -65,6 +66,16 @@ const repoUrl = 'https://github.com/oak-wildwood/cadre'
 </template>
 
 <style>
+/* Throwaway for the Vercel-preview test PR only — delete this whole rule and
+   the .preview-banner element in App.vue before this branch ever merges. */
+.preview-banner {
+  background: #b91c1c;
+  color: #fff;
+  text-align: center;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+}
+
 /* Unscoped on purpose: App.vue is the entire app today, so these tokens and
    resets are the page's, not just this component's. A later design pass can
    promote this block to its own stylesheet without changing the values. */
