@@ -1,15 +1,19 @@
 # EFF Surveillance Self-Defense
 
-Source: <https://ssd.eff.org> · Electronic Frontier Foundation · accessed from documented
-knowledge of the guide's public structure (no live fetch — see note at bottom).
+Source: <https://ssd.eff.org> · Electronic Frontier Foundation · confirmed against the live
+site on 2026-09-17 (see note at bottom).
 
 ## Takeaways for a membership/contact ledger
 
-- [feature] SSD's "Your Security Plan" module frames risk as five questions: what do you want
-  to protect, who do you want to protect it from, how likely is an attack, how bad are the
-  consequences, and how much trouble are you willing to go through. A ledger that stores a
-  member list should let an org answer these per-org, not assume one answer fits everyone —
-  e.g. a tenant union and a newsroom have different consequence tolerances for the same leak.
+- [feature] SSD's "Your Security Plan" module frames risk as six questions: what do you want
+  to protect, who do you want to protect it from, how bad are the consequences if you fail,
+  how likely is it that you'll need to protect it, how much trouble you're willing to go
+  through, and **who your allies are**. A ledger that stores a member list should let an org
+  answer these per-org, not assume one answer fits everyone — e.g. a tenant union and a
+  newsroom have different consequence tolerances for the same leak. The "allies" question is
+  also a reminder that an org's mitigations aren't only technical — who else (a legal
+  hotline, a sister org) they can call on is part of their actual security posture, even
+  though it's outside anything Cadre's software can encode.
 - [avoid] SSD repeatedly warns that metadata (who talked to whom, when, how often) can be as
   revealing as content, sometimes more so, because it's cheaper to collect and harder to
   encrypt away. A membership ledger *is* a metadata store — a list of who is affiliated with
@@ -35,8 +39,9 @@ knowledge of the guide's public structure (no live fetch — see note at bottom)
 
 ## Threat-model language
 
-SSD's core framework is "Assessing Your Risk" / "Your Security Plan," built around the five
-questions above — asset, adversary, likelihood, consequence, and cost-of-mitigation. It treats
+SSD's core framework is "Assessing Your Risk" / "Your Security Plan," built around the six
+questions above — asset, adversary, consequence, likelihood, cost-of-mitigation, and allies. It
+treats
 "threat modeling" as an ongoing exercise, not a one-time checklist, and explicitly separates
 *assets* (what you're protecting) from *adversaries* (who you're protecting it from) from
 *capabilities* (what that adversary can actually do). This vocabulary is compatible with
@@ -51,6 +56,7 @@ structure.
 - `[feature]` adopt SSD's adversary/asset/capability vocabulary in `docs/threat-model.md`
 
 ---
-*No live network access was available when writing this note; content reflects the guide's
-long-standing, well-documented public structure rather than a fetch of the current page. A
-maintainer should confirm against <https://ssd.eff.org> before citing section names verbatim.*
+*Confirmed against the live site on 2026-09-17: "Your Security Plan," the metadata module, the
+device-encryption guides, and the Signal recommendation all check out. One correction from that
+check: "Your Security Plan" asks six questions, not five — the original version of this note
+omitted "Who are my allies?" Added above.*

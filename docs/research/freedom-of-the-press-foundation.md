@@ -1,8 +1,7 @@
 # Freedom of the Press Foundation — Digital Security Training
 
-Source: <https://freedom.press/training/> · Freedom of the Press Foundation · accessed from
-documented knowledge of the organization's public training program (no live fetch — see note
-at bottom).
+Source: <https://freedom.press/training/> · Freedom of the Press Foundation · confirmed
+against the live page on 2026-09-17 (see note at bottom).
 
 ## Takeaways for a membership/contact ledger
 
@@ -55,7 +54,8 @@ reasoning about which systems a compromise could reach.
   one admin's tribal knowledge
 
 ---
-*No live network access was available when writing this note; content reflects the
-organization's long-standing, well-documented public training focus rather than a fetch of the
-current page. A maintainer should confirm against <https://freedom.press/training/> before
-citing specific materials verbatim.*
+*Confirmed against the live page on 2026-09-17: the "Source Protection" collection, the
+journalist/documentary-filmmaker audience, and the Organizational Security Audits program all
+check out as described — including a near-verbatim match on the source-protection framing
+("The effort to protect your sources needs to start before they contact you"). No corrections
+needed.*

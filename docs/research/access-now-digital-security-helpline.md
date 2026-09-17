@@ -1,7 +1,7 @@
 # Access Now — Digital Security Helpline
 
-Source: <https://www.accessnow.org/help/> · Access Now · accessed from documented knowledge of
-the helpline's public program description (no live fetch — see note at bottom).
+Source: <https://www.accessnow.org/help/> · Access Now · confirmed against the live page on
+2026-09-17 (see note at bottom for what changed after that check).
 
 ## Takeaways for a membership/contact ledger
 
@@ -10,10 +10,13 @@ the helpline's public program description (no live fetch — see note at bottom)
   incidents, not general hardening advice. Its case mix — phishing, account takeover, malware,
   device confiscation, doxxing — is a useful, concrete list of "how the leak actually happens"
   scenarios to design against, versus more abstract adversary modeling.
-- [avoid] Account takeover and phishing dominate their incident volume in public reporting,
-  ahead of exotic technical attacks — reinforcing that credential/account security (2FA,
-  phishing-resistant login, session handling) for whoever administers the ledger matters more
-  than most cryptographic edge cases.
+- [avoid] The Helpline's published case types — compromised social media/email accounts,
+  spyware and malware, website takedowns and blocks, account lockouts — skew toward account
+  and access compromise rather than exotic technical attacks. (Their site doesn't publish a
+  ranked incident-volume breakdown; this is a description of the case-type list itself, not a
+  cited statistic.) Reinforces that credential/account security (2FA, phishing-resistant login,
+  session handling) for whoever administers the ledger matters as much as most cryptographic
+  edge cases.
 - [feature] They explicitly serve under-resourced, non-technical organizations and design
   their intake and advice for people without security staff — the same audience Cadre targets.
   Their existence as a "call for help when something's already gone wrong" service argues
@@ -57,7 +60,10 @@ adversary table.
   orgs that can't trust a third-party host
 
 ---
-*No live network access was available when writing this note; content reflects the helpline's
-long-standing, well-documented public program description rather than a fetch of the current
-page. A maintainer should confirm against <https://www.accessnow.org/help/> before citing
-specifics verbatim.*
+*Confirmed against the live page on 2026-09-17: 24/7 availability, ten-language support, and
+the civil-society/journalist/human-rights-defender audience all check out as described. One
+claim was removed on that check — an incident-volume ranking ("phishing and account takeover
+dominate") that isn't something the page actually publishes — and replaced with a
+non-statistical description of the case-type list instead. "Doxxing" and "device confiscation"
+as specific case types weren't independently re-confirmed in this pass; flag if a future check
+turns up a discrepancy there.*
