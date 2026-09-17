@@ -64,6 +64,12 @@ jobs:
           additional_permissions: |
             actions: read
 
+          # Temporary: full turn-by-turn output for debugging the license-issue
+          # (#6) failures — the default logs redact tool_use/tool_result content
+          # ("full output hidden for security"), which made three retries
+          # impossible to diagnose precisely. Remove once #6 is unblocked.
+          show_full_output: true
+
           # Three things worth knowing, all learned the hard way:
           #
           # 1. Passing --allowedTools at all suppresses the action's default
