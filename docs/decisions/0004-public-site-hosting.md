@@ -50,6 +50,9 @@ Every push to `main` that changes `dist`-affecting files triggers a rebuild and 
 a broken build blocks the deploy step rather than publishing stale or broken output. Enabling
 GitHub Pages itself (Settings → Pages → source: `gh-pages` branch) is a one-time dashboard
 step outside this PR — repository settings aren't reachable through the `gh api` scope
-available to this change; see the PR description. Future work that adds real app routes to the
-same Vite project must keep them out of this build's entry point, since nothing here enforces
-that boundary beyond this record and the absence of app routes today.
+available to this change; see the PR description. `.github/workflows/deploy.yml` itself also
+could not be pushed by this automation — the bot's GitHub App token has no `workflows`
+permission, so a maintainer needs to add that one file by hand from the content in the PR
+description; everything else in this PR pushed normally. Future work that adds real app routes
+to the same Vite project must keep them out of this build's entry point, since nothing here
+enforces that boundary beyond this record and the absence of app routes today.
