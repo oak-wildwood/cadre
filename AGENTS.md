@@ -75,7 +75,11 @@ empty body. So the PR title is not a label on a discussion — it is the permane
 change in `git log`, and it is the only part that survives the merge.
 
 Write it as a conventional commit: `type: imperative summary`, lowercase after the colon, no
-trailing period, under about 70 characters.
+trailing period, **66 characters or fewer**. That's not a style suggestion — `pr-title.yml` enforces
+it as a required check and fails the PR otherwise. 66 rather than 72 because GitHub appends
+" (#123)" to the squashed subject; budgeting for it here keeps the finished commit subject inside
+the conventional 72. Count the title before opening the PR — a failed check that gets bypassed
+(e.g. by an admin merging anyway) still lands a title over budget permanently in `git log`.
 
 ```
 feat: add encrypted export bundle
