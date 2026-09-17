@@ -1,0 +1,50 @@
+name: DCO
+
+# Cadre takes contributions under the Developer Certificate of Origin instead of a CLA
+# (see CONTRIBUTING.md and docs/decisions/0002-license.md): every commit needs a
+# `Signed-off-by` trailer certifying the author wrote it or otherwise has the right to
+# submit it under AGPL-3.0. AGENTS.md and CLAUDE.md both say to commit with `-s`, but
+# instruction files are advisory — this is the binding half, same reasoning as pr-title.yml.
+#
+# This checks every commit in the PR, not the final squashed commit on main. The repo's
+# squash setting takes the PR title alone with an empty body, so the squashed commit never
+# carries a trailer either way — DCO certification happens at commit time, before merge,
+# not in the merged artifact.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check every commit carries a Signed-off-by trailer
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=""
+          while read -r sha; do
+            printf '%s' "$(git log -1 --format=%B "$sha")" | grep -qE '^Signed-off-by: .+ <.+@.+>$' \
+              || missing="$missing $sha"
+          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+
+          if [ -n "$missing" ]; then
+            printf '::error::%s\n' "Commit(s) missing a Signed-off-by trailer:$missing"
+            printf '\nEvery commit needs: Signed-off-by: Name <email>\n'
+            printf 'Fix the latest commit:    git commit --amend -s --no-edit\n'
+            printf 'Fix several on a branch:  git rebase --exec '\''git commit --amend --no-edit -s'\'' -i main\n'
+            printf 'See CONTRIBUTING.md.\n'
+            exit 1
+          fi
+
+          echo "All commits signed off."
