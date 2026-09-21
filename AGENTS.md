@@ -23,10 +23,11 @@ contact info, roles, notes. All PII is treated as sensitive.
 2. **Don't keep what you can't protect.** Retention (`expires_at`) and deletion are
    first-class. Never add a code path that copies PII somewhere the purge logic doesn't reach:
    logs, error reports, caches, analytics, test fixtures with real-looking data.
-3. **Every architectural choice gets a decision record** in `docs/decisions/` — one paragraph
-   on *why* and *what threat it addresses*. A PR that changes the stack, the key hierarchy, the
-   schema's sensitivity classification or the storage layer without a decision record is
-   incomplete.
+3. **A choice gets a decision record in `docs/decisions/` when it's hard to reverse, surprising
+   without context, and the result of a real trade-off** — see `docs/decisions/README.md` for
+   the template and the full test. Changes to the stack, the key hierarchy, the schema's
+   sensitivity classification or the storage layer almost always qualify; tie the *why* back to
+   a row of `docs/threat-model.md` where the decision is threat-driven.
 4. **Free and open source only.** No paid cloud services in development. AWS/EKS artifacts are
    written and `plan`-ed / `validate`-d, never `apply`-ed unless a human explicitly approves in
    the issue. An accidental `apply` costs real money on someone else's card.

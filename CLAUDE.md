@@ -14,3 +14,13 @@ Claude-specific:
 - Every `git commit` needs `-s` (see AGENTS.md). After committing, actually run `gh pr create`
   rather than leaving a "Create PR" link and marking the task done anyway — a run on 2026-09-17
   did exactly that, self-reported the checklist item as complete, and left the PR unopened.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`oak-wildwood/cadre`), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` (created lazily) plus decision records in `docs/decisions/` — see `docs/decisions/README.md` for the template and when to write one, and `docs/agents/domain.md` for how skills should consume them.
