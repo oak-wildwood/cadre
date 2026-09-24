@@ -33,16 +33,20 @@ Vitest runs against [`happy-dom`](https://github.com/capricorn86/happy-dom), con
 adds (mounting components, asserting on rendered output) and is much faster to start than a
 real browser.
 
-It is **not** enough once PGlite or WebCrypto-backed code needs tests: PGlite needs a real
-WASM-capable runtime, and `happy-dom` doesn't implement `SubtleCrypto` or provide a WASM
-environment sufficient for PGlite. When those land (`src/storage/`, `src/crypto/`), route
-their spec files through Vitest's [browser mode](https://vitest.dev/guide/browser/)
-(`@vitest/browser`) instead, which runs the tests in a real browser via Playwright/WebdriverIO.
-The two can coexist: keep `happy-dom` as the default `test.environment` for UI specs, and give
-storage/crypto specs a per-file `test.environment` override (or a separate Vitest
-[project](https://vitest.dev/guide/projects.html)) that points at browser mode. This phase
-doesn't add that config since nothing in `src/storage/` or `src/crypto/` exists yet — flagged
-here so the issue that adds the first PGlite or WebCrypto test doesn't have to rediscover it.
+PGlite turned out not to need anything more: `happy-dom` only shims DOM globals inside a real
+Node process, and that process's own WASM support is what PGlite actually runs on, so
+`src/storage/migrate.spec.ts` (added alongside `src/storage/migrate.ts`) runs under the default
+config with no override.
+
+WebCrypto-backed code is a separate question and still untested: `happy-dom` may not provide a
+`SubtleCrypto` global the way a real browser or Node's own `crypto.webcrypto` does. If
+`src/crypto/` specs hit that gap, route them through Vitest's
+[browser mode](https://vitest.dev/guide/browser/) (`@vitest/browser`), which runs tests in a
+real browser via Playwright/WebdriverIO. The two can coexist: keep `happy-dom` as the default
+`test.environment` for UI specs, and give crypto specs a per-file `test.environment` override
+(or a separate Vitest [project](https://vitest.dev/guide/projects.html)) that points at browser
+mode. This phase doesn't add that config since nothing in `src/crypto/` exists yet — flagged
+here so the issue that adds the first WebCrypto test doesn't have to rediscover it.
 
 ## Layout
 
