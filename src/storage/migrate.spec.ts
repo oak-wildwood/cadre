@@ -3,11 +3,22 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { SensitiveField } from '../domain/member'
 import { migrate, type Migration, type QueryFn } from './migrate'
 import { loadMigrationsFromDisk, parseMigrationFilename } from './migrationFiles'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const MIGRATIONS_DIR = join(HERE, '..', '..', 'migrations')
+const DISK_MIGRATIONS = loadMigrationsFromDisk(join(HERE, '..', '..', 'migrations'))
+
+// Typed against SensitiveField so a new field without a column mapping is a type error; the
+// assertions below then require its `_enc`/`_bidx` columns and index to exist in the schema.
+const SENSITIVE_COLUMNS: Record<SensitiveField, string> = {
+  displayName: 'display_name',
+  email: 'email',
+  phone: 'phone',
+  notes: 'notes',
+}
+const SENSITIVE_COLUMN_PREFIXES = Object.values(SENSITIVE_COLUMNS)
 
 describe('migrate', () => {
   let db: PGlite
@@ -26,9 +37,7 @@ describe('migrate', () => {
   })
 
   it('applies migrations/0001_init.sql, creating the members and settings tables', async () => {
-    const migrations = loadMigrationsFromDisk(MIGRATIONS_DIR)
-
-    const result = await migrate(query, migrations)
+    const result = await migrate(query, DISK_MIGRATIONS)
 
     expect(result.applied.map((m) => m.version)).toEqual([1])
 
@@ -43,14 +52,7 @@ describe('migrate', () => {
         'created_at',
         'updated_at',
         'expires_at',
-        'display_name_enc',
-        'display_name_bidx',
-        'email_enc',
-        'email_bidx',
-        'phone_enc',
-        'phone_bidx',
-        'notes_enc',
-        'notes_bidx',
+        ...SENSITIVE_COLUMN_PREFIXES.flatMap((column) => [`${column}_enc`, `${column}_bidx`]),
       ].sort(),
     )
 
@@ -58,13 +60,22 @@ describe('migrate', () => {
     expect(settingsRows).toEqual([])
   })
 
-  it('running the migrations twice is a no-op the second time', async () => {
-    const migrations = loadMigrationsFromDisk(MIGRATIONS_DIR)
+  it('indexes expires_at and every blind-index column', async () => {
+    await migrate(query, DISK_MIGRATIONS)
 
-    const first = await migrate(query, migrations)
+    const { rows } = await query(`SELECT indexdef FROM pg_indexes WHERE tablename = 'members'`)
+    const indexedColumns = rows.map((row) => /\((\w+)\)$/.exec(String(row.indexdef))?.[1])
+
+    for (const column of ['expires_at', ...SENSITIVE_COLUMN_PREFIXES.map((c) => `${c}_bidx`)]) {
+      expect(indexedColumns).toContain(column)
+    }
+  })
+
+  it('running the migrations twice is a no-op the second time', async () => {
+    const first = await migrate(query, DISK_MIGRATIONS)
     expect(first.applied.map((m) => m.version)).toEqual([1])
 
-    const second = await migrate(query, migrations)
+    const second = await migrate(query, DISK_MIGRATIONS)
     expect(second.applied).toEqual([])
 
     const { rows } = await query(`SELECT version FROM schema_migrations ORDER BY version`)
@@ -80,7 +91,7 @@ describe('migrate', () => {
       name: 'dummy_depends_on_members',
       sql: `ALTER TABLE members ADD COLUMN dummy_marker boolean NOT NULL DEFAULT true;`,
     }
-    const initMigration = loadMigrationsFromDisk(MIGRATIONS_DIR).find((m) => m.version === 1)!
+    const initMigration = DISK_MIGRATIONS.find((m) => m.version === 1)!
 
     // Passed in reverse order on purpose.
     const result = await migrate(query, [dummyMigration, initMigration])
@@ -90,11 +101,31 @@ describe('migrate', () => {
     const { rows } = await query(`SELECT dummy_marker FROM members`)
     expect(rows).toEqual([])
 
-    const { rows: recorded } = await query(`SELECT version, name FROM schema_migrations ORDER BY version`)
+    const { rows: recorded } = await query(
+      `SELECT version, name FROM schema_migrations ORDER BY version`,
+    )
     expect(recorded).toEqual([
       { version: 1, name: 'init' },
       { version: 2, name: 'dummy_depends_on_members' },
     ])
+  })
+
+  it('rolls back a failing migration, leaves it unrecorded, and keeps the connection usable', async () => {
+    const broken: Migration = {
+      version: 1,
+      name: 'broken',
+      sql: `CREATE TABLE half_done (id integer); SELECT * FROM table_that_does_not_exist;`,
+    }
+
+    await expect(migrate(query, [broken])).rejects.toThrow()
+
+    const { rows: tables } = await query(
+      `SELECT table_name FROM information_schema.tables WHERE table_name = 'half_done'`,
+    )
+    expect(tables).toEqual([])
+
+    const retry = await migrate(query, DISK_MIGRATIONS)
+    expect(retry.applied.map((m) => m.version)).toEqual([1])
   })
 
   it('rejects duplicate versions', async () => {
@@ -104,6 +135,23 @@ describe('migrate', () => {
     ]
 
     await expect(migrate(query, migrations)).rejects.toThrow(/duplicate/i)
+  })
+
+  it.each([
+    { version: 1, name: "init'); DROP TABLE members; --" },
+    { version: 1, name: 'Has-Caps' },
+    { version: 0, name: 'zero' },
+    { version: 1.5, name: 'fractional' },
+    { version: Number.NaN, name: 'nan' },
+  ])('rejects an unsafe version or name before running any SQL: %o', async (bad) => {
+    await expect(migrate(query, [{ ...bad, sql: 'SELECT 1' }])).rejects.toThrow(
+      /invalid migration/i,
+    )
+
+    const { rows } = await query(
+      `SELECT table_name FROM information_schema.tables WHERE table_name = 'schema_migrations'`,
+    )
+    expect(rows).toEqual([])
   })
 })
 

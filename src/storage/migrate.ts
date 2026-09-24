@@ -34,6 +34,7 @@ const MIGRATIONS_TABLE = 'schema_migrations'
  * no-op the second time.
  */
 export async function migrate(query: QueryFn, migrations: Migration[]): Promise<MigrateResult> {
+  migrations.forEach(assertValidMigration)
   const sorted = sortByVersion(migrations)
   assertUniqueVersions(sorted)
 
@@ -54,13 +55,20 @@ export async function migrate(query: QueryFn, migrations: Migration[]): Promise<
       continue
     }
 
-    await query(`
-      BEGIN;
-      ${migration.sql}
-      INSERT INTO ${MIGRATIONS_TABLE} (version, name)
-        VALUES (${migration.version}, '${escapeLiteral(migration.name)}');
-      COMMIT;
-    `)
+    try {
+      // version and name are interpolated only because assertValidMigration has already
+      // restricted them to an integer and [a-z0-9_]; QueryFn has no parameter binding.
+      await query(`
+        BEGIN;
+        ${migration.sql}
+        INSERT INTO ${MIGRATIONS_TABLE} (version, name)
+          VALUES (${migration.version}, '${migration.name}');
+        COMMIT;
+      `)
+    } catch (error) {
+      await query('ROLLBACK')
+      throw error
+    }
     applied.push(migration)
   }
 
@@ -81,6 +89,13 @@ function assertUniqueVersions(migrations: Migration[]): void {
   }
 }
 
-function escapeLiteral(value: string): string {
-  return value.replace(/'/g, "''")
+const MIGRATION_NAME_PATTERN = /^[a-z0-9_]+$/
+
+function assertValidMigration(migration: Migration): void {
+  if (!Number.isSafeInteger(migration.version) || migration.version < 1) {
+    throw new Error(`Invalid migration version: ${migration.version}`)
+  }
+  if (!MIGRATION_NAME_PATTERN.test(migration.name)) {
+    throw new Error(`Invalid migration name (expected [a-z0-9_]+): ${migration.name}`)
+  }
 }

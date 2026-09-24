@@ -14,6 +14,13 @@ yet in ascending version order, and is a no-op on a database that's already curr
 runner itself never touches the filesystem, so the same function drives PGlite in the browser
 today and `pg` against server Postgres in Phase 2, off the same files, unchanged.
 
+Because that query function takes a bare SQL string with no parameter binding, the runner
+rejects any migration whose version isn't a positive integer or whose name isn't `[a-z0-9_]+`
+before running anything, rather than escaping those values into the bookkeeping `INSERT`.
+Rejecting input the filename convention never produces is simpler to trust than an escaping
+routine. Each migration runs in its own transaction and is rolled back on failure, so a broken
+migration leaves neither half-applied schema nor a `schema_migrations` row behind.
+
 Drizzle (or another migration tool) was the alternative the issue raised. Rejected for now:
 this schema has one table with a handful of `bytea` columns and a singleton settings row — no
 generated query builder or ORM layer is buying anything yet, and adding one means trusting its
