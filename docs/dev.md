@@ -33,16 +33,22 @@ Vitest runs against [`happy-dom`](https://github.com/capricorn86/happy-dom), con
 adds (mounting components, asserting on rendered output) and is much faster to start than a
 real browser.
 
-It is **not** enough once PGlite or WebCrypto-backed code needs tests: PGlite needs a real
-WASM-capable runtime, and `happy-dom` doesn't implement `SubtleCrypto` or provide a WASM
-environment sufficient for PGlite. When those land (`src/storage/`, `src/crypto/`), route
-their spec files through Vitest's [browser mode](https://vitest.dev/guide/browser/)
-(`@vitest/browser`) instead, which runs the tests in a real browser via Playwright/WebdriverIO.
-The two can coexist: keep `happy-dom` as the default `test.environment` for UI specs, and give
-storage/crypto specs a per-file `test.environment` override (or a separate Vitest
-[project](https://vitest.dev/guide/projects.html)) that points at browser mode. This phase
-doesn't add that config since nothing in `src/storage/` or `src/crypto/` exists yet — flagged
-here so the issue that adds the first PGlite or WebCrypto test doesn't have to rediscover it.
+It is **not** enough once PGlite or WebCrypto-backed code needs tests: `happy-dom` doesn't
+implement `SubtleCrypto` or provide a WASM environment sufficient for PGlite. PGlite itself is
+isomorphic — the same WASM build runs under plain Node, not just a real browser — so the fix for
+PGlite specs (`src/storage/migrate.spec.ts` is the first) is a per-file
+[`// @vitest-environment node`](https://vitest.dev/guide/environment.html#test-environment)
+docblock, not full browser mode: it opts that file out of `happy-dom` into Vitest's default
+`node` environment, which has a real `WebAssembly` global and nothing else worth mentioning here.
+Keep `happy-dom` as the default `test.environment` for UI specs; give storage specs (and any
+other spec that just needs PGlite/WASM, no DOM) the same per-file override.
+
+Reach for Vitest's [browser mode](https://vitest.dev/guide/browser/) (`@vitest/browser`,
+real browser via Playwright/WebdriverIO) only when a test needs behavior the `node` environment
+can't provide — e.g. a future PGlite adapter test that exercises IndexedDB-backed persistence,
+or WebCrypto specifics that don't match Node's `globalThis.crypto.subtle`. Nothing in this phase
+needs that yet, so `@vitest/browser` isn't added as a dependency here — flagged so the issue
+that first needs it doesn't have to rediscover why.
 
 ## Layout
 
