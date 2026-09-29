@@ -25,14 +25,15 @@
     "vue": "^3.5.42"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.9",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/compat": "^2.1.1",
     "@tsconfig/node22": "^22.0.6",
     "@types/node": "^22.20.3",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/coverage-v8": "^5.0.1",
     "@vue/eslint-config-typescript": "^14.9.0",
-    "@vue/tsconfig": "^0.9.1",
     "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.11.0",
