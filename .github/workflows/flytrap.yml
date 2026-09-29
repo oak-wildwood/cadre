@@ -4,8 +4,12 @@ name: Flytrap
 # oak-wildwood/flytrap: a Verdict and summary, then an inline comment on each
 # Finding, with a suggested change where it has one. Only a collaborator with
 # write, maintain or admin permission can trigger it. Needs a
-# CLAUDE_CODE_OAUTH_TOKEN secret (the same one claude.yml uses) but not the
-# Claude GitHub App — Flytrap posts with this workflow's own github.token.
+# CLAUDE_CODE_OAUTH_TOKEN secret (the same one claude.yml uses).
+#
+# Reviews post as the Flytrap Reviewer GitHub App (flytrap-reviewer[bot]) via a
+# token minted from its FLYTRAP_APP_ID variable and FLYTRAP_APP_PRIVATE_KEY
+# secret. Without them, the token step is skipped and Flytrap falls back to
+# this workflow's own github.token (github-actions[bot]).
 #
 # claude-code-action skips runs whose workflow doesn't match the default
 # branch's copy, so a change to this file only takes effect once merged.
@@ -25,6 +29,20 @@ jobs:
     if: github.event.issue.pull_request && contains(github.event.comment.body, '@flytrap')
     runs-on: ubuntu-latest
     steps:
+      # A short-lived token for the App, scoped to this repo and to what
+      # Flytrap needs, so posts come from flytrap-reviewer[bot].
+      - name: Mint the Flytrap Reviewer token
+        id: app-token
+        if: vars.FLYTRAP_APP_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.FLYTRAP_APP_ID }}
+          private-key: ${{ secrets.FLYTRAP_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: write
+
       - uses: oak-wildwood/flytrap@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token || github.token }}
