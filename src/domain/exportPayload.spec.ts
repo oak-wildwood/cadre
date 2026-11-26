@@ -85,6 +85,34 @@ describe('export payload', () => {
     expect(() => decodeExportPayload(json({ ...raw(), members: {} }))).toThrow(ExportPayloadError)
   })
 
+  it('round-trips years outside 0000-9999', () => {
+    const far = {
+      ...member,
+      createdAt: new Date('-000100-01-01T00:00:00.000Z'),
+      expiresAt: new Date('+020255-01-01T00:00:00.000Z'),
+    }
+    const bytes = encodeExportPayload({ exportedAt, members: [far] })
+    expect(decodeExportPayload(bytes)).toEqual({ exportedAt, members: [far] })
+  })
+
+  it('rejects repeated keys, reordered keys and extra whitespace', () => {
+    const canonical = new TextDecoder().decode(
+      encodeExportPayload({ exportedAt, members: [member] }),
+    )
+    const variants = [
+      canonical.replace('"phone":null', '"phone":null,"phone":null'),
+      canonical.replace('"email":"payload.fixture@example.invalid"', '"email":"x","email":"y"'),
+      canonical.replace(/^\{"exportedAt":("[^"]+"),("members":.*)\}$/, '{$2,"exportedAt":$1}'),
+      canonical.replace('"members":', '"members": '),
+    ]
+    for (const variant of variants) {
+      expect(variant).not.toBe(canonical)
+      expect(() => decodeExportPayload(new TextEncoder().encode(variant))).toThrow(
+        ExportPayloadError,
+      )
+    }
+  })
+
   it('rejects non-JSON and invalid UTF-8', () => {
     expect(() => decodeExportPayload(new TextEncoder().encode('{'))).toThrow(ExportPayloadError)
     expect(() => decodeExportPayload(new Uint8Array([0xff]))).toThrow(ExportPayloadError)

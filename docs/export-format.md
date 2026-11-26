@@ -34,20 +34,28 @@ A reader must check in this order, and stop at the first failure:
 
 1. **Magic.** Bytes 0 to 6 must be `CADREXB`. Otherwise: "not a Cadre export bundle". This also
    rejects the unreleased interim bundles that began with `CADREi00`.
-2. **Version.** Byte 7 must be a version the reader knows. Otherwise fail with "made by a newer
-   version of Cadre; update to import it". Never report this as a wrong passphrase, and never
-   run Argon2id for it.
+2. **Version.** Byte 7 (present in any bundle of 8 bytes or more) must be a version the reader
+   knows. A higher version fails with "made by a newer version of Cadre; update to import it".
+   Never report this as a wrong passphrase, and never run Argon2id for it. Version `0x00` was
+   never written and is reported as a damaged header.
 3. **Slot length and size.** Bytes 8 to 9 must be `87`, and the bundle must be at least
    `10 + 87 + 36 + 61 = 194` bytes. Otherwise: "damaged" or "truncated export bundle".
-4. **Unlock the slot** with the export passphrase (next section). Failure means a wrong
+4. **Bundle ID.** Bytes 97 to 132 must be ASCII and match
+   `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`. Otherwise: "damaged export
+   bundle header". Because it is ASCII, the string used in the AAD is exactly these 36 bytes.
+5. **Inner versions.** In a version 1 bundle, slot bytes 0 and 1 (bundle bytes 10 and 11) and
+   the first byte of the field value (bundle byte 133) are always `0x01`. Any other value is
+   damage: report it like a failed unlock (slot) or a failed decryption (field value), never as
+   "update Cadre".
+6. **Unlock the slot** with the export passphrase (next section). Failure means a wrong
    passphrase or a damaged slot. The two are deliberately indistinguishable.
-5. **Decrypt the payload** with the field key and the binding below. Failure means the bundle ID
+7. **Decrypt the payload** with the field key and the binding below. Failure means the bundle ID
    or payload was changed or damaged.
-6. **Parse the payload** strictly (see Payload).
+8. **Parse the payload** strictly (see Payload).
 
-The magic and slot length have one valid value each. Every other header byte is authenticated:
-the slot's settings and salt by the slot's own wrap, and the version byte and bundle ID by the
-payload's AAD.
+The magic, slot length and inner version bytes have one valid value each, and the bundle ID has
+a fixed shape. Every other header byte is authenticated: the slot's settings and salt by the
+slot's own wrap, and the version byte and bundle ID by the payload's AAD.
 
 ## Key slot (87 bytes)
 
@@ -64,8 +72,9 @@ payload's AAD.
 
 To unlock:
 
-1. Reject a slot whose version or kind is unknown. Reject settings below opslimit 2 /
-   memlimit 67108864 or above opslimit 4 / memlimit 1073741824 before running Argon2id.
+1. Reject a slot whose version or kind is not `0x01`, or whose KDF algorithm byte is not
+   `0x02`. Reject settings below opslimit 2 / memlimit 67108864 or above opslimit 4 / memlimit
+   1073741824 before running Argon2id.
 2. Normalize the passphrase to Unicode NFC and encode it as UTF-8. Nothing else (no trimming,
    no case folding).
 3. `wrappingKey = crypto_pwhash(32, passphrase, salt, opslimit, memlimit, ARGON2ID13)`.
@@ -135,11 +144,20 @@ UTF-8 JSON (invalid UTF-8 is rejected), one object with exactly these keys:
 | `createdAt`, `updatedAt`          | timestamp               | Kept on import                    |
 | `expiresAt`                       | timestamp or `null`     | `null` means "never expires"      |
 
-A timestamp is exactly the form JavaScript's `Date.prototype.toISOString` writes:
-`YYYY-MM-DDTHH:MM:SS.sssZ`, in UTC, and a real calendar date.
+A timestamp is exactly the form JavaScript's `Date.prototype.toISOString` writes, in UTC, and
+a real calendar date: `YYYY-MM-DDTHH:MM:SS.sssZ` for years 0000 to 9999, and `±YYYYYY-…` (a
+sign and six digits) for years outside that range, which a store can hold.
 
-A reader rejects any unknown or missing key, at either level, and any value of the wrong type.
-It never ignores what it does not understand. Error messages name the key, never the value.
+The payload must be exactly the canonical encoding: keys in the order shown, no whitespace,
+strings escaped as JavaScript's `JSON.stringify` escapes them. Cadre's reader parses the JSON,
+validates it, re-encodes it and rejects the bundle if the bytes differ. That one check rejects
+repeated keys (which many JSON parsers silently collapse), reordered keys and added
+whitespace. A reader in another language that cannot reproduce the encoding must at least
+reject repeated keys.
+
+A reader rejects any unknown, missing or repeated key, at either level, and any value of the
+wrong type. It never ignores what it does not understand. Error messages may name an expected
+key, but never a value or an unknown key.
 
 ## Import rules
 

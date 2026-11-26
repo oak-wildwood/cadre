@@ -3,9 +3,9 @@
  * `docs/export-format.md`). It holds member rows with their sensitive fields in plaintext, so it
  * must only ever exist in memory or inside the encrypted bundle. Never log it.
  *
- * Decoding is strict: an unknown or missing key, or a value of the wrong type, is rejected so a
- * reader never silently drops data a newer writer added. Error messages name the key, never the
- * value.
+ * Decoding is strict: an unknown, missing or repeated key, a value of the wrong type, or any
+ * byte that differs from the canonical encoding is rejected, so a reader never silently drops
+ * data a newer writer added. Error messages name an expected key, never a value or an unknown key.
  */
 import type { Member } from './member'
 
@@ -35,8 +35,9 @@ const MEMBER_KEYS = [
 ] as const
 const NULLABLE_STRINGS = ['email', 'phone', 'role', 'notes'] as const
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-// Exactly what Date.prototype.toISOString produces for years 0000-9999.
-const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+// Exactly what Date.prototype.toISOString produces: four-digit years, or a sign and six digits
+// for years outside 0000-9999 (which a valid JS Date, and Postgres, can hold).
+const ISO_UTC = /^(?:\d{4}|[+-]\d{6})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 
 export function encodeExportPayload(payload: ExportPayload): Uint8Array {
   const json = {
@@ -76,7 +77,18 @@ export function decodeExportPayload(bytes: Uint8Array): ExportPayload {
     seen.add(member.id)
     return member
   })
-  return { exportedAt: checkDate(root.exportedAt, 'exportedAt'), members }
+  const payload = { exportedAt: checkDate(root.exportedAt, 'exportedAt'), members }
+  // JSON.parse keeps the last of two repeated keys silently. Requiring the bytes to be exactly
+  // the canonical encoding rejects repeats, reordering and extra whitespace in one check.
+  const canonical = encodeExportPayload(payload)
+  try {
+    if (canonical.length !== bytes.length || canonical.some((byte, i) => byte !== bytes[i])) {
+      throw new ExportPayloadError('Export payload is not in canonical form')
+    }
+  } finally {
+    canonical.fill(0)
+  }
+  return payload
 }
 
 function decodeMember(value: unknown, where: string): Member {

@@ -71,9 +71,13 @@ describe('export bundle', () => {
   })
 
   it('fails a changed bundle id or payload byte with DecryptError', async () => {
-    for (const at of [ID_START, PAYLOAD_START, PAYLOAD_START + 20, sealed.length - 1]) {
+    for (const at of [PAYLOAD_START + 1, PAYLOAD_START + 20, sealed.length - 1]) {
       await expect(openBundle(flipped(at), PASSPHRASE)).rejects.toBeInstanceOf(DecryptError)
     }
+    // A different, still well-formed bundle id.
+    const otherId = sealed.slice()
+    otherId[ID_START] = sealed[ID_START] === 0x30 ? 0x31 : 0x30
+    await expect(openBundle(otherId, PASSPHRASE)).rejects.toBeInstanceOf(DecryptError)
   })
 
   it('rejects a newer format version before unlocking, with an update message', async () => {
@@ -91,6 +95,39 @@ describe('export bundle', () => {
     for (const bundle of [flipped(0), interim, new Uint8Array(0), new Uint8Array(3)]) {
       await expect(openBundle(bundle, PASSPHRASE)).rejects.toBeInstanceOf(BundleFormatError)
     }
+  })
+
+  it('reports a damaged inner version byte as damage, never as "update Cadre"', async () => {
+    for (const [at, expected] of [
+      [SLOT_START, UnlockError],
+      [SLOT_START + 1, UnlockError],
+      [PAYLOAD_START, DecryptError],
+    ] as const) {
+      for (const value of [0x00, 0x02, 0xff]) {
+        const bundle = sealed.slice()
+        bundle[at] = value
+        const error = await openBundle(bundle, PASSPHRASE).catch((e: unknown) => e)
+        expect(error).toBeInstanceOf(expected)
+        expect(error).not.toBeInstanceOf(UnsupportedFormatError)
+      }
+    }
+  })
+
+  it('rejects a bundle id that is not a lowercase UUID before unlocking', async () => {
+    for (const replacement of [0x41, 0xff, 0x00]) {
+      const bundle = sealed.slice()
+      bundle[ID_START + 3] = replacement
+      await expect(openBundle(bundle, 'not even checked')).rejects.toBeInstanceOf(BundleFormatError)
+    }
+  })
+
+  it('reports version 0 as damage and checks the version even on a short bundle', async () => {
+    const zero = sealed.slice()
+    zero[7] = 0
+    await expect(openBundle(zero, PASSPHRASE)).rejects.toBeInstanceOf(BundleFormatError)
+    const short = sealed.slice(0, 8)
+    short[7] = 2
+    await expect(openBundle(short, PASSPHRASE)).rejects.toBeInstanceOf(BundleVersionError)
   })
 
   it('rejects a slot length other than 87', async () => {

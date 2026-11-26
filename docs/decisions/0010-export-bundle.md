@@ -158,6 +158,11 @@ than reading them.
 8. A committed golden v1 bundle, made with a known test passphrase, still imports.
 9. An export passphrase under 15 characters is rejected.
 10. A slot length other than 87, or one that overruns the bundle, throws a format error.
+11. Inner slot or field-value version bytes other than 1 are reported as damage
+    (`UnlockError`/`DecryptError`), never as "update Cadre". A bundle ID that is not a
+    lowercase ASCII UUID is a format error.
+12. Repeated keys in the payload are rejected, and timestamps with years outside 0000-9999
+    round-trip.
 
 ## Owner direction (2026-11-26)
 

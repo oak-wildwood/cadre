@@ -8,7 +8,14 @@
  *
  * This module only frames and seals bytes. The JSON payload lives in `domain/exportPayload.ts`.
  */
-import { createPassphraseSlot, unlock, UnsupportedFormatError, type KdfParams } from 'keyslot'
+import {
+  createPassphraseSlot,
+  DecryptError,
+  unlock,
+  UnlockError,
+  UnsupportedFormatError,
+  type KdfParams,
+} from 'keyslot'
 
 export const BUNDLE_MAGIC = 'CADREXB'
 export const BUNDLE_VERSION = 1
@@ -19,6 +26,9 @@ const MIN_FIELD_VALUE_BYTES = 61
 const BUNDLE_ID_BYTES = 36
 const MAGIC_BYTES = new TextEncoder().encode(BUNDLE_MAGIC)
 const HEADER_BYTES = MAGIC_BYTES.length + 1 + 2
+const BUNDLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** In a v1 bundle the inner key slot and field value are always format 1, passphrase kind. */
+const INNER_FORMAT_V1 = 0x01
 
 /** Export passphrases must be at least this many characters (record 0010, decision 3). */
 export const MIN_EXPORT_PASSPHRASE_LENGTH = 15
@@ -102,12 +112,18 @@ export async function openBundle(bundle: Uint8Array, passphrase: string): Promis
   if (!MAGIC_BYTES.every((byte, i) => bundle[i] === byte)) {
     throw new BundleFormatError('Not a Cadre export bundle')
   }
-  if (bundle.length < HEADER_BYTES) {
+  if (bundle.length <= MAGIC_BYTES.length) {
     throw new BundleFormatError('Truncated export bundle')
   }
   const version = bundle[MAGIC_BYTES.length]!
-  if (version !== BUNDLE_VERSION) {
+  if (version > BUNDLE_VERSION) {
     throw new BundleVersionError()
+  }
+  if (version !== BUNDLE_VERSION) {
+    throw new BundleFormatError('Damaged export bundle header')
+  }
+  if (bundle.length < HEADER_BYTES) {
+    throw new BundleFormatError('Truncated export bundle')
   }
   const slotLength = new DataView(bundle.buffer, bundle.byteOffset).getUint16(
     MAGIC_BYTES.length + 1,
@@ -122,12 +138,27 @@ export async function openBundle(bundle: Uint8Array, passphrase: string): Promis
   let offset = HEADER_BYTES
   const slot = bundle.subarray(offset, offset + slotLength)
   offset += slotLength
-  const bundleId = new TextDecoder().decode(bundle.subarray(offset, offset + BUNDLE_ID_BYTES))
+  const idBytes = bundle.subarray(offset, offset + BUNDLE_ID_BYTES)
+  // Every byte must be ASCII, so the decoded string (and the AAD built from it) is exactly the
+  // raw bytes.
+  const bundleId = String.fromCharCode(...idBytes)
+  if (!BUNDLE_ID.test(bundleId)) {
+    throw new BundleFormatError('Damaged export bundle header')
+  }
   offset += BUNDLE_ID_BYTES
+  const sealed = bundle.subarray(offset)
+  // A v1 bundle only ever holds a format-1 passphrase slot and a format-1 field value. Any other
+  // inner version is damage, not a newer Cadre, so it must not reach keyslot's "update" error.
+  if (slot[0] !== INNER_FORMAT_V1 || slot[1] !== INNER_FORMAT_V1) {
+    throw new UnlockError()
+  }
   const keyRing = await unlock(passphrase, slot)
   try {
+    if (sealed[0] !== INNER_FORMAT_V1) {
+      throw new DecryptError()
+    }
     // The id is bound into the AAD, so a changed id fails decryption like a changed payload.
-    return await keyRing.decryptField(bundle.subarray(offset), binding(version, bundleId))
+    return await keyRing.decryptField(sealed, binding(version, bundleId))
   } finally {
     keyRing.lock()
   }
