@@ -60,7 +60,7 @@ first, and what that gives away. It replaces the interim `src/crypto/blindIndex.
    store's rebuilds every index, then writes its version, in one transaction. Without this, an
    older store opened by a newer build would silently miss every search on a changed field and
    let duplicates through. A build never runs against a store with a newer rules version than
-   its own; it refuses to open it, as for an unknown key-slot version (0007, decision 6).
+   its own; it refuses to open it, as for an unknown key-slot version (`UnsupportedFormatError`, 0007 decision 8).
 
 ## What a blind index gives away, and why we accept it
 
