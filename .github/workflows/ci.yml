@@ -1,0 +1,51 @@
+name: CI
+
+# Runs the checks a PR has to pass before it can be trusted: typecheck, lint,
+# tests, and a production build. Until this existed, the only checks on a PR
+# were Vercel, the PR title, and DCO, so PRs showed green without their tests
+# ever running (PR #49 was mergeable with a failing rollback test).
+#
+# Node comes from .nvmrc, the same as deploy.yml, so CI, the Pages build and
+# local development all use one version.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
