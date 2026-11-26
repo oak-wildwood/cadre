@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type {
-  ExportOptions,
-  ImportOptions,
-  ImportResult,
-  LedgerRepository,
-  PurgeResult,
+import {
+  StoreNotEmptyError,
+  type ExportOptions,
+  type ImportOptions,
+  type ImportResult,
+  type LedgerRepository,
+  type PurgeResult,
 } from './LedgerRepository'
 import type { ListQuery, Page } from './listQuery'
 import type { Member, MemberId, MemberPatch, NewMember, SensitiveField } from './member'
@@ -178,9 +179,115 @@ export function describeRepositoryContract(factory: () => LedgerRepository): voi
         const { items } = await fresh.list({ limit: 10 })
         expect(items.map((m) => m.displayName).sort()).toEqual(['Ada Lovelace', 'Grace Hopper'])
       })
+
+      it('round-trips every field, id and timestamp', async () => {
+        const full = await repo.create(
+          makeNewMember({
+            displayName: 'Zoë Fixture-Ñame 名前',
+            email: 'fixture@example.invalid',
+            phone: '+1-555-0100',
+            role: 'organizer',
+            notes: 'Line one\nline two',
+            expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+          }),
+        )
+        const sparse = await repo.create(makeNewMember({ displayName: '' }))
+
+        const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE })
+        const fresh = factory()
+        await fresh.importEncrypted(bundle, { passphrase: EXPORT_PASSPHRASE })
+
+        expect(await fresh.read(full.id)).toEqual(full)
+        expect(await fresh.read(sparse.id)).toEqual(sparse)
+      })
+
+      it('rejects a wrong passphrase and imports nothing', async () => {
+        await repo.create(makeNewMember({ displayName: 'Ada Lovelace' }))
+        const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE })
+
+        const fresh = factory()
+        await expect(
+          fresh.importEncrypted(bundle, { passphrase: 'a different passphrase entirely' }),
+        ).rejects.toThrow()
+        expect((await fresh.list()).items).toEqual([])
+      })
+
+      it('rejects an export passphrase shorter than 15 characters', async () => {
+        await expect(repo.exportEncrypted({ passphrase: '14 characters!' })).rejects.toThrow(
+          /15 characters/,
+        )
+      })
+
+      it('refuses a non-empty store without replace, and leaves it unchanged', async () => {
+        await repo.create(makeNewMember({ displayName: 'Ada Lovelace' }))
+        const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE })
+
+        const target = factory()
+        const existing = await target.create(makeNewMember({ displayName: 'Grace Hopper' }))
+
+        await expect(
+          target.importEncrypted(bundle, { passphrase: EXPORT_PASSPHRASE }),
+        ).rejects.toBeInstanceOf(StoreNotEmptyError)
+        expect((await target.list()).items).toEqual([existing])
+      })
+
+      it('replaces every existing member with replace: true', async () => {
+        const kept = await repo.create(makeNewMember({ displayName: 'Ada Lovelace' }))
+        const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE })
+
+        const target = factory()
+        await target.create(makeNewMember({ displayName: 'Grace Hopper' }))
+
+        const result = await target.importEncrypted(bundle, {
+          passphrase: EXPORT_PASSPHRASE,
+          replace: true,
+        })
+
+        expect(result).toEqual({ imported: 1, skippedExpired: 0 })
+        expect((await target.list()).items).toEqual([kept])
+      })
+
+      it('leaves expired members out of an export', async () => {
+        const now = new Date('2030-06-01T00:00:00.000Z')
+        await repo.create(makeNewMember({ displayName: 'Expired', expiresAt: now }))
+        const live = await repo.create(
+          makeNewMember({ displayName: 'Live', expiresAt: new Date('2030-06-02T00:00:00.000Z') }),
+        )
+
+        const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE, now })
+        const fresh = factory()
+        const result = await fresh.importEncrypted(bundle, {
+          passphrase: EXPORT_PASSPHRASE,
+          now: new Date('2030-01-01T00:00:00.000Z'),
+        })
+
+        expect(result).toEqual({ imported: 1, skippedExpired: 0 })
+        expect((await fresh.list()).items).toEqual([live])
+      })
+
+      it('skips members that expired after the export was made', async () => {
+        const expiresAt = new Date('2030-06-01T00:00:00.000Z')
+        await repo.create(makeNewMember({ displayName: 'Expires', expiresAt }))
+        const forever = await repo.create(makeNewMember({ displayName: 'Forever' }))
+        const bundle = await repo.exportEncrypted({
+          passphrase: EXPORT_PASSPHRASE,
+          now: new Date('2030-01-01T00:00:00.000Z'),
+        })
+
+        const fresh = factory()
+        const result = await fresh.importEncrypted(bundle, {
+          passphrase: EXPORT_PASSPHRASE,
+          now: expiresAt,
+        })
+
+        expect(result).toEqual({ imported: 1, skippedExpired: 1 })
+        expect((await fresh.list()).items).toEqual([forever])
+      })
     })
   })
 }
+
+const EXPORT_PASSPHRASE = 'correct-horse-battery-staple'
 
 function makeNewMember(overrides: Partial<NewMember> = {}): NewMember {
   return {
@@ -292,21 +399,38 @@ class InMemoryRepository implements LedgerRepository {
     return { purged }
   }
 
+  // Not encrypted: the passphrase is stored next to the rows, which is fine only in a fake.
   async exportEncrypted(opts: ExportOptions): Promise<Uint8Array> {
-    void opts
-    const json = JSON.stringify([...this.members.values()])
-    return new TextEncoder().encode(json)
+    if ([...opts.passphrase.normalize('NFC')].length < 15) {
+      throw new Error('Export passphrases must be at least 15 characters.')
+    }
+    const now = opts.now ?? new Date()
+    const members = [...this.members.values()].filter(
+      (m) => m.expiresAt === null || m.expiresAt > now,
+    )
+    return new TextEncoder().encode(JSON.stringify({ passphrase: opts.passphrase, members }))
   }
 
   async importEncrypted(bundle: Uint8Array, opts: ImportOptions): Promise<ImportResult> {
-    void opts
-    const json = new TextDecoder().decode(bundle)
-    const members = JSON.parse(json, reviveDates) as Member[]
-    for (const member of members) {
+    const { passphrase, members } = JSON.parse(new TextDecoder().decode(bundle), reviveDates) as {
+      passphrase: string
+      members: Member[]
+    }
+    if (passphrase !== opts.passphrase) {
+      throw new Error('Wrong passphrase')
+    }
+    if (this.members.size && opts.replace !== true) {
+      throw new StoreNotEmptyError()
+    }
+    this.members.clear()
+    this.sequence.clear()
+    const now = opts.now ?? new Date()
+    const live = members.filter((m) => m.expiresAt === null || m.expiresAt > now)
+    for (const member of live) {
       this.members.set(member.id, member)
       this.sequence.set(member.id, this.nextSeq++)
     }
-    return { imported: members.length }
+    return { imported: live.length, skippedExpired: members.length - live.length }
   }
 }
 

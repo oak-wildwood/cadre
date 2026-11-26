@@ -2,13 +2,25 @@ import type { BlindIndexedField, Member, MemberId, MemberPatch, NewMember } from
 import type { ListQuery, Page } from './listQuery'
 
 export interface ExportOptions {
-  /** Passphrase the export bundle is encrypted under; never the org's stored key material. */
+  /**
+   * Passphrase the export bundle is encrypted under; never the org's stored key material. At
+   * least 15 characters (record 0010, decision 3).
+   */
   passphrase: string
+  /** Members expired at or before this instant are left out. Defaults to `new Date()`. */
+  now?: Date
 }
 
 export interface ImportOptions {
   /** Passphrase the bundle being imported was exported with. */
   passphrase: string
+  /**
+   * Import refuses a store that has members unless this is `true`, in which case every existing
+   * member is deleted and the bundle written in one transaction. There is no merge.
+   */
+  replace?: boolean
+  /** Members expired at or before this instant are skipped. Defaults to `new Date()`. */
+  now?: Date
 }
 
 export interface PurgeResult {
@@ -17,6 +29,16 @@ export interface PurgeResult {
 
 export interface ImportResult {
   imported: number
+  /** Rows in the bundle already past their `expiresAt`, which were not imported. */
+  skippedExpired: number
+}
+
+/** `importEncrypted` was called on a store with members and without `replace: true`. */
+export class StoreNotEmptyError extends Error {
+  constructor() {
+    super('Import needs an empty store, or replace: true to delete the existing members first.')
+    this.name = 'StoreNotEmptyError'
+  }
 }
 
 /**
@@ -46,9 +68,15 @@ export interface LedgerRepository {
   /** Crypto-shreds every member whose `expiresAt` is at or before `now` (default: `new Date()`). */
   purgeExpired(now?: Date): Promise<PurgeResult>
 
-  /** Encrypted by default — see AGENTS.md's "exports are encrypted by default" invariant. */
+  /**
+   * Always encrypted: there is no plaintext export (record 0010). Format in
+   * `docs/export-format.md`. Expired members are left out.
+   */
   exportEncrypted(opts: ExportOptions): Promise<Uint8Array>
 
-  /** Imports into the calling repository; must round-trip into a *fresh* repository. */
+  /**
+   * Imports into the calling repository; must round-trip into a *fresh* repository. Replace-only:
+   * throws `StoreNotEmptyError` on a store with members unless `replace: true`.
+   */
   importEncrypted(bundle: Uint8Array, opts: ImportOptions): Promise<ImportResult>
 }

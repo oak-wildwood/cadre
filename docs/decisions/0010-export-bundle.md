@@ -1,6 +1,6 @@
 # 0010 — Encrypted export bundle
 
-**Status:** proposed
+**Status:** accepted (on merge; see owner direction below)
 **Date:** 2026-11-26
 **Issue:** #14. Builds on 0007 (key derivation). Consumed by Phase 2's server-side importer.
 
@@ -57,8 +57,9 @@ The export passphrase is supplied at export time and is not the store passphrase
 - Changing the store passphrase cannot reach a bundle already written (R5). Decoupling makes
   that obvious instead of implying the bundle "rotates" with the store.
 - The same 15-character minimum as the store (0007 owner decision 2) applies. 0007 put that
-  check in the UI (#15). **Proposed, pending owner question 2:** the repository also rejects a
-  shorter export passphrase, so the rule holds for any caller, not just the UI.
+  check in the UI (#15). The repository also rejects a shorter export passphrase, counted in
+  Unicode code points after NFC normalization, so the rule holds for any caller, not just the
+  UI. Import does not check the length: a bundle opens with whatever passphrase made it.
 
 ### 4. Wire format, version 1
 
@@ -138,8 +139,8 @@ than reading them.
   deleting a member later does not remove them from bundles already made. The export UI
   (#15) must say so.
 - Each export and each import costs one Argon2id run, about half a second at MODERATE.
-- `ExportOptions`/`ImportOptions` gain no new fields beyond `replace` on import.
-  `ImportResult` gains `skippedExpired`.
+- `ImportOptions` gains `replace`, both option types gain an optional `now` (the expiry cutoff,
+  for tests), and `ImportResult` gains `skippedExpired`.
 - Adding org settings (for example #13's retention default) to bundles needs format version 2.
 - `docs/export-format.md` restates section 4 with byte-level examples and the error table, and
   is written with the implementation, not with this record.
@@ -155,14 +156,20 @@ than reading them.
 6. Import into a non-empty store is refused; with `replace: true` it replaces.
 7. Expired rows are not exported and are skipped on import.
 8. A committed golden v1 bundle, made with a known test passphrase, still imports.
-9. If owner question 2 is answered yes, an export passphrase under 15 characters is rejected.
+9. An export passphrase under 15 characters is rejected.
 10. A slot length other than 87, or one that overruns the bundle, throws a format error.
 
-## Questions for the owner
+## Owner direction (2026-11-26)
 
-1. Is `keyslot` over `age` right, given that it trades away "decrypt with a stock tool" for
-   one KDF and non-extractable keys?
-2. Should the repository enforce the 15-character minimum on export passphrases, or leave it
-   to the UI?
-3. Is dropping expired rows on export and import the right call, rather than importing them
-   and letting the next purge remove them?
+The record was proposed with three open questions. On 2026-11-26 the owner asked for them to
+be settled with the recommended answers rather than waiting, and accepts the record by merging
+it:
+
+1. **`keyslot`, not `age`** (decision 1). One password KDF and non-extractable keys outweigh
+   decrypting with a stock tool; `docs/export-format.md` keeps the format implementable
+   without Cadre.
+2. **The repository enforces the 15-character minimum** on export passphrases (decision 3), so
+   a future caller other than the UI cannot make a weak bundle.
+3. **Expired rows are dropped on export and on import** (decision 5), rather than imported and
+   left for the next purge. A purge that never runs, or runs late, would otherwise bring them
+   back.
