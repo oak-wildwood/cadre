@@ -1,4 +1,4 @@
-import type { Member, MemberId, MemberPatch, NewMember, SensitiveField } from './member'
+import type { BlindIndexedField, Member, MemberId, MemberPatch, NewMember } from './member'
 import type { ListQuery, Page } from './listQuery'
 
 export interface ExportOptions {
@@ -39,9 +39,9 @@ export interface LedgerRepository {
   /**
    * Equality-only lookup against a blind index (HMAC of the normalized
    * value). Never partial or prefix matching — see AGENTS.md's blind-index
-   * invariant.
+   * invariant. Only `BLIND_INDEXED_FIELDS` (see `sensitiveFields.ts`) can be searched.
    */
-  findByBlindIndex(field: SensitiveField, value: string): Promise<Member[]>
+  findByBlindIndex(field: BlindIndexedField, value: string): Promise<Member[]>
 
   /** Crypto-shreds every member whose `expiresAt` is at or before `now` (default: `new Date()`). */
   purgeExpired(now?: Date): Promise<PurgeResult>

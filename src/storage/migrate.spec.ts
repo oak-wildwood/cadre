@@ -3,22 +3,23 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { SensitiveField } from '../domain/member'
+import {
+  BLIND_INDEXED_FIELDS,
+  SENSITIVE_FIELD_NAMES,
+  blindIndexColumn,
+  encryptedColumn,
+} from '../domain/sensitiveFields'
 import { migrate, type Migration, type QueryFn } from './migrate'
 import { loadMigrationsFromDisk, parseMigrationFilename } from './migrationFiles'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DISK_MIGRATIONS = loadMigrationsFromDisk(join(HERE, '..', '..', 'migrations'))
 
-// Typed against SensitiveField so a new field without a column mapping is a type error; the
-// assertions below then require its `_enc`/`_bidx` columns and index to exist in the schema.
-const SENSITIVE_COLUMNS: Record<SensitiveField, string> = {
-  displayName: 'display_name',
-  email: 'email',
-  phone: 'phone',
-  notes: 'notes',
-}
-const SENSITIVE_COLUMN_PREFIXES = Object.values(SENSITIVE_COLUMNS)
+// Derived from sensitiveFields.ts, so a new sensitive field fails these assertions until a
+// migration adds its `_enc` column (and `_bidx` column and index, if it is blind-indexed).
+const ENC_COLUMNS = SENSITIVE_FIELD_NAMES.map(encryptedColumn)
+const BIDX_COLUMNS = BLIND_INDEXED_FIELDS.map(blindIndexColumn)
+const ALL_VERSIONS = DISK_MIGRATIONS.map((m) => m.version).sort((a, b) => a - b)
 
 describe('migrate', () => {
   let db: PGlite
@@ -36,50 +37,75 @@ describe('migrate', () => {
     await db.close()
   })
 
-  it('applies migrations/0001_init.sql, creating the members and settings tables', async () => {
+  it('applies every migration on disk, in order', async () => {
     const result = await migrate(query, DISK_MIGRATIONS)
 
-    expect(result.applied.map((m) => m.version)).toEqual([1])
+    expect(ALL_VERSIONS).toEqual([1, 2])
+    expect(result.applied.map((m) => m.version)).toEqual(ALL_VERSIONS)
+  })
+
+  it('leaves members with only structural columns and the derived `_enc` / `_bidx` columns', async () => {
+    await migrate(query, DISK_MIGRATIONS)
 
     const { rows: memberColumns } = await query(`
       SELECT column_name FROM information_schema.columns WHERE table_name = 'members'
     `)
     const columnNames = memberColumns.map((row) => row.column_name).sort()
     expect(columnNames).toEqual(
-      [
-        'id',
-        'role',
-        'created_at',
-        'updated_at',
-        'expires_at',
-        ...SENSITIVE_COLUMN_PREFIXES.flatMap((column) => [`${column}_enc`, `${column}_bidx`]),
-      ].sort(),
+      ['id', 'created_at', 'updated_at', 'expires_at', ...ENC_COLUMNS, ...BIDX_COLUMNS].sort(),
     )
+    // Record 0007, decision 9: no plaintext role, no role or notes blind index.
+    expect(columnNames).not.toContain('role')
+    expect(columnNames).not.toContain('role_bidx')
+    expect(columnNames).not.toContain('notes_bidx')
 
     const { rows: settingsRows } = await query(`SELECT * FROM settings`)
     expect(settingsRows).toEqual([])
   })
 
-  it('indexes expires_at and every blind-index column', async () => {
+  it('indexes expires_at and every blind-index column, and nothing encrypted', async () => {
     await migrate(query, DISK_MIGRATIONS)
 
     const { rows } = await query(`SELECT indexdef FROM pg_indexes WHERE tablename = 'members'`)
     const indexedColumns = rows.map((row) => /\((\w+)\)$/.exec(String(row.indexdef))?.[1])
 
-    for (const column of ['expires_at', ...SENSITIVE_COLUMN_PREFIXES.map((c) => `${c}_bidx`)]) {
-      expect(indexedColumns).toContain(column)
-    }
+    expect(indexedColumns.sort()).toEqual(['expires_at', 'id', ...BIDX_COLUMNS].sort())
+  })
+
+  it('makes the member id a required, client-supplied value', async () => {
+    await migrate(query, DISK_MIGRATIONS)
+
+    // The id is part of every value's AAD, so a database-made id would be a bug.
+    await expect(
+      query(`INSERT INTO members (display_name_enc, display_name_bidx) VALUES ('\\x01', '\\x01')`),
+    ).rejects.toThrow(/null value in column "id"/)
+  })
+
+  it('creates key_slots for wrapped master keys', async () => {
+    await migrate(query, DISK_MIGRATIONS)
+
+    const { rows } = await query(`
+      SELECT column_name, data_type, is_nullable FROM information_schema.columns
+      WHERE table_name = 'key_slots' ORDER BY column_name
+    `)
+    expect(rows).toEqual([
+      { column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'NO' },
+      { column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+      { column_name: 'slot', data_type: 'bytea', is_nullable: 'NO' },
+      { column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'NO' },
+    ])
+    await expect(query(`INSERT INTO key_slots (slot) VALUES ('\\x')`)).rejects.toThrow()
   })
 
   it('running the migrations twice is a no-op the second time', async () => {
     const first = await migrate(query, DISK_MIGRATIONS)
-    expect(first.applied.map((m) => m.version)).toEqual([1])
+    expect(first.applied.map((m) => m.version)).toEqual(ALL_VERSIONS)
 
     const second = await migrate(query, DISK_MIGRATIONS)
     expect(second.applied).toEqual([])
 
     const { rows } = await query(`SELECT version FROM schema_migrations ORDER BY version`)
-    expect(rows.map((r) => r.version)).toEqual([1])
+    expect(rows.map((r) => r.version)).toEqual(ALL_VERSIONS)
   })
 
   it('applies migrations in version order regardless of input order, proven by a dummy migration', async () => {
@@ -125,7 +151,7 @@ describe('migrate', () => {
     expect(tables).toEqual([])
 
     const retry = await migrate(query, DISK_MIGRATIONS)
-    expect(retry.applied.map((m) => m.version)).toEqual([1])
+    expect(retry.applied.map((m) => m.version)).toEqual(ALL_VERSIONS)
   })
 
   it('rejects duplicate versions', async () => {

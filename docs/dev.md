@@ -33,16 +33,14 @@ Vitest runs against [`happy-dom`](https://github.com/capricorn86/happy-dom), con
 adds (mounting components, asserting on rendered output) and is much faster to start than a
 real browser.
 
-It is **not** enough once PGlite or WebCrypto-backed code needs tests: PGlite needs a real
-WASM-capable runtime, and `happy-dom` doesn't implement `SubtleCrypto` or provide a WASM
-environment sufficient for PGlite. When those land (`src/storage/`, `src/crypto/`), route
-their spec files through Vitest's [browser mode](https://vitest.dev/guide/browser/)
-(`@vitest/browser`) instead, which runs the tests in a real browser via Playwright/WebdriverIO.
-The two can coexist: keep `happy-dom` as the default `test.environment` for UI specs, and give
-storage/crypto specs a per-file `test.environment` override (or a separate Vitest
-[project](https://vitest.dev/guide/projects.html)) that points at browser mode. This phase
-doesn't add that config since nothing in `src/storage/` or `src/crypto/` exists yet — flagged
-here so the issue that adds the first PGlite or WebCrypto test doesn't have to rediscover it.
+Specs that use WebCrypto (`src/crypto/`, `packages/keyslot/`) run in Node instead, opted in
+per file with a `// @vitest-environment node` comment on the first line. Node 22 ships the same
+WebCrypto API and runs libsodium's and PGlite's WebAssembly. A real
+browser run (Vitest [browser mode](https://vitest.dev/guide/browser/)) is still worth adding
+before release, since Argon2id memory limits differ per browser and device (#53).
+
+Most crypto specs use the cheaper "interactive" Argon2id settings (`MIN_KDF_PARAMS`) to stay
+fast. The defaults themselves are exercised once, in `packages/keyslot/test/params.spec.ts`.
 
 ## Layout
 
@@ -52,7 +50,9 @@ here so the issue that adds the first PGlite or WebCrypto test doesn't have to r
   exist, this content moves behind routing rather than being replaced by it.
 - `src/domain/` — types and the storage-repository interface.
 - `src/storage/` — repository implementations (PGlite, Postgres).
-- `src/crypto/` — thin wrappers around libsodium / WebCrypto / `age` / OpenBao transit only.
+- `src/crypto/` — Cadre glue around `keyslot`: member fields to ciphertext and back.
+- `packages/keyslot/` — the standalone key-slot and field-encryption package (npm workspace,
+  Apache-2.0). It imports nothing from `src/`.
 
 ## Public site deployments
 
