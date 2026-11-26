@@ -13,7 +13,7 @@ first, and what that gives away. It replaces the interim `src/crypto/blindIndex.
 ## Decisions
 
 1. **Construction.** `blindIndex(field, value)` is HMAC-SHA-256 through WebCrypto, keyed with the
-   `KeyRing`'s blind-index subkey (0007, decision 3; never the field key). The HMAC input is the
+   `KeyRing`'s blind-index subkey (0007, decision 4; never the field key). The HMAC input is the
    UTF-8 bytes of `field + "\0" + normalize(field, value)`. The full 32-byte tag is stored in the
    `<column>_bidx bytea` column. Nothing here is a new primitive.
 2. **The field name is in the input.** The same value in two fields (a phone number typed into
@@ -27,12 +27,12 @@ first, and what that gives away. It replaces the interim `src/crypto/blindIndex.
    that partial values do not match.
 4. **Normalization rules.** These are part of the format: changing them changes every index.
 
-   | Field         | Rule                                                                                       |
-   | ------------- | ------------------------------------------------------------------------------------------ |
-   | every field   | Unicode NFKC, then trim, then collapse every run of whitespace to one space                |
-   | `displayName` | the above, then lowercase (`toLowerCase`, locale-independent)                              |
-   | `email`       | the above, then lowercase the whole address, including the local part                      |
-   | `phone`       | keep a leading `+` if the trimmed value starts with one, then keep only the digits `0`–`9` |
+   | Field         | Rule                                                                                                                   |
+   | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+   | every field   | Unicode NFKC, then trim, then collapse every run of whitespace to one space                                            |
+   | `displayName` | the above, then lowercase (`toLowerCase`, locale-independent)                                                          |
+   | `email`       | the above, then lowercase the whole address, including the local part                                                  |
+   | `phone`       | the above, then keep a leading `+` if present, then keep only the digits `0`–`9`; no digits at all normalizes to empty |
    - **Lowercase, not full case folding.** JavaScript has no built-in full case fold, and we will
      not hand-roll Unicode tables. The visible gap is small (for example, `ß` and `ss` stay
      distinct). A missed match costs a duplicate member; a wrong match would merge two people.
@@ -44,14 +44,23 @@ first, and what that gives away. It replaces the interim `src/crypto/blindIndex.
      Guessing a country would need a phone-number library and a default region, and a wrong
      guess merges two people. The UI (#15) should show a stored number's format when a search
      misses. NFKC runs first, so full-width digits are matched.
-   - **A value that normalizes to empty has no index.** Its `_bidx` is `NULL`, and
-     `findByBlindIndex` with a value that normalizes to empty returns `[]`. Otherwise every
-     member with a blank phone would share one index and searching for `""` would list them.
+   - **A value that normalizes to empty has no index.** For `email` and `phone` its `_bidx` is
+     `NULL` (as for a missing value), and `findByBlindIndex` with a value that normalizes to
+     empty returns `[]`. Otherwise every member with a blank phone, or a phone of just `+`,
+     would share one index and searching for `""` would list them. `displayName` is required
+     and its `_bidx` column is `NOT NULL`, so the repository rejects a create or update whose
+     `displayName` normalizes to empty, before writing anything.
 
 5. **Changing a rule later** means recomputing every index for that field in one transaction,
    in the browser, because only an unlocked `KeyRing` can compute them. That is the same
    operation as key rotation (0007), and it is cheap at Cadre's size. There is no version byte on
-   an index: indexes are derived data, never exported, and always rebuilt from the plaintext.
+   each index: indexes are derived data, never exported, and always rebuilt from the plaintext.
+   Instead the store records one **blind-index rules version** (an integer, `1` for the rules
+   above) in its `settings` row. After unlock, a build whose rules version differs from the
+   store's rebuilds every index, then writes its version, in one transaction. Without this, an
+   older store opened by a newer build would silently miss every search on a changed field and
+   let duplicates through. A build never runs against a store with a newer rules version than
+   its own; it refuses to open it, as for an unknown key-slot version (0007, decision 6).
 
 ## What a blind index gives away, and why we accept it
 
@@ -67,10 +76,19 @@ learns, per indexed field:
   Rotation (0007) changes every index and breaks that link for copies made afterwards.
 
 It does **not** give away the value itself, its length, or any part of it, as long as the
-blind-index subkey stays secret. Without the key, guessing "is Ada Lovelace a member?" needs the
-key, so a host or thief cannot test names or phone numbers against the file. With the key, an
-attacker could test every phone number offline quickly, but whoever holds that key holds the
-master key and can decrypt everything anyway (0007, decision 3), so the index adds nothing.
+blind-index subkey stays secret. A host or thief with only the file cannot test "is Ada
+Lovelace a member?" against it.
+
+**If the blind-index key alone is exposed, the index does add risk.** 0007 keeps the two subkeys
+separate (decision 4) so that the field values stay safe in that case, but the indexes do not.
+The realistic way this happens is not a copied key (it is non-extractable) but a malicious
+script running while the store is unlocked (R2, R3, A8), calling HMAC on it for guessed values
+and checking the results against a stolen copy of the file. Phone numbers are the weakest case:
+a whole national numbering plan is small enough to enumerate. Names and emails are guessable
+only for people the attacker already suspects. We accept this because the same script, running
+in an unlocked session, can already ask the field key to decrypt every row, so the index gives
+it nothing new while it runs. What the index adds is that a copy of the file taken later stays
+testable for as long as the master key is unchanged. Rotation (0007) ends that.
 
 This is threat-model residual risk **R1**, stated here as #12 must. We accept it because:
 
