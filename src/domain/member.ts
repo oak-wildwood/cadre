@@ -15,6 +15,12 @@ export interface Member {
   expiresAt: Date | null
 }
 
-export type NewMember = Omit<Member, 'id' | 'createdAt' | 'updatedAt'>
+/**
+ * `expiresAt` left out (`undefined`) means "apply the org's default retention"; `null` means
+ * "never expires", on purpose. See `docs/retention.md`.
+ */
+export type NewMember = Omit<Member, 'id' | 'createdAt' | 'updatedAt' | 'expiresAt'> & {
+  expiresAt?: Date | null
+}
 
 export type MemberPatch = Partial<Omit<Member, 'id' | 'createdAt' | 'updatedAt'>>

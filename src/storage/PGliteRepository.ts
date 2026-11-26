@@ -118,7 +118,11 @@ export class PGliteRepository implements LedgerRepository {
   async create(input: NewMember): Promise<Member> {
     const db = await this.opened
     const id = newMemberId()
-    const row = await this.insert(db, id, input, null)
+    const expiresAt =
+      input.expiresAt === undefined
+        ? await this.defaultExpiry(db, new Date())
+        : checkedDate(input.expiresAt)
+    const row = await this.insert(db, id, { ...input, expiresAt }, null)
     return this.toMember(row)
   }
 
@@ -286,6 +290,31 @@ export class PGliteRepository implements LedgerRepository {
     return { purged: affectedRows }
   }
 
+  async getDefaultRetentionDays(): Promise<number | null> {
+    const db = await this.opened
+    return this.readDefaultRetentionDays(db)
+  }
+
+  async setDefaultRetentionDays(days: number | null): Promise<void> {
+    checkedRetentionDays(days)
+    const db = await this.opened
+    await db.query(
+      `INSERT INTO settings (id, default_retention_days) VALUES (true, $1)
+       ON CONFLICT (id) DO UPDATE SET default_retention_days = $1, updated_at = now()`,
+      [days],
+    )
+  }
+
+  private async readDefaultRetentionDays(db: Queryable): Promise<number | null> {
+    const { rows } = await db.query<Row>(`SELECT default_retention_days FROM settings`)
+    return (rows[0]?.default_retention_days as number | null | undefined) ?? null
+  }
+
+  private async defaultExpiry(db: Queryable, from: Date): Promise<Date | null> {
+    const days = await this.readDefaultRetentionDays(db)
+    return days === null ? null : new Date(from.getTime() + days * 86_400_000)
+  }
+
   async exportEncrypted(opts: ExportOptions): Promise<Uint8Array> {
     const db = await this.opened
     const { rows } = await db.query<Row>(
@@ -326,7 +355,7 @@ export class PGliteRepository implements LedgerRepository {
     const columns = ['id', 'expires_at', ...ENC_COLUMNS]
     const values: unknown[] = [
       id,
-      checkedDate(input.expiresAt),
+      checkedDate(input.expiresAt ?? null),
       ...SENSITIVE_FIELD_NAMES.map((f) => encrypted[f]),
     ]
     for (const field of BLIND_INDEXED_FIELDS) {
@@ -373,12 +402,25 @@ export class PGliteRepository implements LedgerRepository {
 }
 
 /**
- * Rewrites `members` so a deleted row's bytes leave the live data files rather than waiting for
- * vacuum to reuse the space (docs/threat-model.md, Q3). The store is small, so this is cheap.
- * It does not cover copies already synced elsewhere or WAL segments; see docs/dev.md.
+ * Gets a deleted row's bytes out of the store (docs/threat-model.md, Q3). `VACUUM FULL` rewrites
+ * `members` so the heap no longer holds them. The write-ahead log still does until its segment
+ * is retired, and by default Postgres recycles a retired segment by renaming it, old bytes and
+ * all. So: stop recycling, switch to a fresh segment, and checkpoint so the old ones are
+ * unlinked. The store is small, so all of this is cheap. Copies synced or backed up elsewhere
+ * are out of reach; see docs/retention.md.
  */
 async function reclaim(db: PGlite): Promise<void> {
   await db.exec('VACUUM FULL members')
+  await db.exec('SET wal_recycle = off')
+  await db.exec('SELECT pg_switch_wal()')
+  await db.exec('CHECKPOINT')
+  await db.exec('CHECKPOINT')
+}
+
+function checkedRetentionDays(days: number | null): void {
+  if (days !== null && (!Number.isSafeInteger(days) || days < 1)) {
+    throw new RangeError('Retention must be a positive whole number of days, or null')
+  }
 }
 
 function pickSensitive(input: NewMember): SensitiveValues {

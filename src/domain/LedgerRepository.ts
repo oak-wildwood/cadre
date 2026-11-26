@@ -43,8 +43,19 @@ export interface LedgerRepository {
    */
   findByBlindIndex(field: BlindIndexedField, value: string): Promise<Member[]>
 
-  /** Crypto-shreds every member whose `expiresAt` is at or before `now` (default: `new Date()`). */
+  /**
+   * Hard-deletes every member whose `expiresAt` is at or before `now` (default: `new Date()`),
+   * leaving no row or tombstone behind, and returns how many. See `docs/retention.md`.
+   */
   purgeExpired(now?: Date): Promise<PurgeResult>
+
+  /**
+   * Org-level default retention in days, applied by `create` when `expiresAt` is omitted.
+   * `null` means no default (members never expire unless given an `expiresAt`).
+   */
+  getDefaultRetentionDays(): Promise<number | null>
+  /** Affects members created afterwards only; existing `expiresAt` values are not rewritten. */
+  setDefaultRetentionDays(days: number | null): Promise<void>
 
   /** Encrypted by default — see AGENTS.md's "exports are encrypted by default" invariant. */
   exportEncrypted(opts: ExportOptions): Promise<Uint8Array>
