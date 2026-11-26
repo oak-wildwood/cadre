@@ -10,15 +10,15 @@ npm ci
 
 ## Commands
 
-| Command              | Does                                                                    |
-| -------------------- | ----------------------------------------------------------------------- |
-| `npm run dev`        | Start the Vite dev server.                                              |
-| `npm run build`      | Type-check (`vue-tsc --noEmit`) then build for production into `dist/`. |
-| `npm test`           | Run the Vitest suite once.                                              |
-| `npm run test:watch` | Run Vitest in watch mode.                                               |
-| `npm run lint`       | ESLint over the project.                                                |
-| `npm run typecheck`  | `vue-tsc --noEmit`, no build output.                                    |
-| `npm run format`     | Prettier, writes to `src/`.                                             |
+| Command              | Does                                                                             |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `npm run dev`        | Start the Vite dev server.                                                       |
+| `npm run build`      | Type-check (`npm run typecheck`) then build for production into `dist/`.         |
+| `npm test`           | Run the Vitest suite once.                                                       |
+| `npm run test:watch` | Run Vitest in watch mode.                                                        |
+| `npm run lint`       | ESLint over the project.                                                         |
+| `npm run typecheck`  | `vue-tsc --noEmit` on the app, the specs plus Node-only files, and root configs. |
+| `npm run format`     | Prettier, writes to `src/`.                                                      |
 
 Acceptance check for a clean checkout:
 
