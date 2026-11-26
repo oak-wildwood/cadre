@@ -56,8 +56,9 @@ The export passphrase is supplied at export time and is not the store passphrase
   store too, and the store passphrase to whoever later finds the bundle.
 - Changing the store passphrase cannot reach a bundle already written (R5). Decoupling makes
   that obvious instead of implying the bundle "rotates" with the store.
-- The same 15-character minimum as the store (0007 owner decision 2) applies. The repository
-  rejects a shorter export passphrase, so the rule holds outside the UI too.
+- The same 15-character minimum as the store (0007 owner decision 2) applies. 0007 put that
+  check in the UI (#15). **Proposed, pending owner question 2:** the repository also rejects a
+  shorter export passphrase, so the rule holds for any caller, not just the UI.
 
 ### 4. Wire format, version 1
 
@@ -71,9 +72,23 @@ The export passphrase is supplied at export time and is not the store passphrase
 | 46 + n | rest   | `keyslot` field value (0007 decision 6) holding the UTF-8 JSON payload   |
 
 The payload is encrypted with the slot's field key and the binding
-`{ namespace: "cadre-export-v1", recordId: <bundle ID>, field: "payload" }`. The format
-version is inside the AAD, so editing the version byte, the bundle ID or the payload fails
-decryption. The slot authenticates its own settings and salt.
+`{ namespace: "cadre-export-v" + <bundle version, decimal>, recordId: <bundle ID>, field: "payload" }`,
+so `cadre-export-v1` for version 1. (The leading `0x01` of 0007's AAD is the field format
+version, not this bundle version.) A v1 reader works in this order, and every header byte ends
+up checked:
+
+1. Check the magic. Any other value is a format error.
+2. Read the version byte. An unknown version is rejected with `UnsupportedFormatError` before
+   anything is decrypted.
+3. Check the slot length. Version 1 requires exactly 87, and the bundle must be long enough to
+   hold the slot, the bundle ID and a minimum-size field value (61 bytes). Anything else is a
+   format error.
+4. Unlock the slot. The slot's own wrap authenticates its settings and salt.
+5. Decrypt the payload, building the namespace from the version byte read in step 2. A version
+   byte changed to another known version, or a changed bundle ID or payload, fails decryption.
+
+The magic and the slot length have exactly one valid value in version 1, and everything else is
+authenticated by the slot or by the payload's AAD.
 
 The payload is one JSON object:
 
@@ -140,7 +155,8 @@ than reading them.
 6. Import into a non-empty store is refused; with `replace: true` it replaces.
 7. Expired rows are not exported and are skipped on import.
 8. A committed golden v1 bundle, made with a known test passphrase, still imports.
-9. An export passphrase under 15 characters is rejected.
+9. If owner question 2 is answered yes, an export passphrase under 15 characters is rejected.
+10. A slot length other than 87, or one that overruns the bundle, throws a format error.
 
 ## Questions for the owner
 
