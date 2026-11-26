@@ -54,6 +54,27 @@ fast. The defaults themselves are exercised once, in `packages/keyslot/test/para
 - `packages/keyslot/` — the standalone key-slot and field-encryption package (npm workspace,
   Apache-2.0). It imports nothing from `src/`.
 
+## The browser store
+
+`PGliteRepository` (`src/storage/`) keeps the ledger in PGlite, persisted to **IndexedDB** at
+`idb://cadre` by default. Why IndexedDB rather than OPFS: PGlite's OPFS backend (`opfs-ahp://`)
+must run inside a Web Worker and holds synchronous access handles that Safari limits, while
+IndexedDB works on the main thread in every browser Cadre targets. Switching later is a copy of
+the data directory (`dumpDataDir` / `loadDataDir`) or an export and import, so this is not a
+decision record. Migrations run each time the store opens.
+
+To inspect it: DevTools → Application → Storage → IndexedDB → `/pglite/cadre` → `FILE_DATA`.
+Each entry is one Postgres data file, as raw bytes. Sensitive fields are only ever written as
+`*_enc` ciphertext and `*_bidx` HMACs, so no member name, email, phone, role or note should be
+findable there (`src/crypto/storeDump.spec.ts` automates that check on a raw dump). To see the
+rows themselves, query the store from a test or a scratch script with
+`new PGlite('idb://cadre')`; never paste real member data into an issue.
+
+Deleting or purging a member runs `VACUUM FULL members`, so the row's ciphertext leaves the
+table's data files at once (tested). Postgres's write-ahead log can still hold it until the WAL
+segment is recycled, and the data key is the store's key, so this is not yet crypto-shredding.
+That residue is `docs/threat-model.md` Q3, still open for #13.
+
 ## Public site deployments
 
 The brochure/landing site's production copy is `main` built by the GitHub Pages workflow —
