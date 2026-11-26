@@ -36,7 +36,7 @@ repository interface, its contract tests and the schema. Field encryption (#11),
 |---|---|---|
 | **The roster itself**: the fact that a person is a member | The list of who is affiliated is the target, independent of anything else stored about them. FPF calls this the core of source protection; EFF warns that "who is connected to whom" can reveal more than content ([FPF](research/freedom-of-the-press-foundation.md), [EFF](research/eff-surveillance-self-defense.md)). | One row per member in `members`; the row count and IDs are visible without any key |
 | **Member PII**: display name, email, phone, free-text notes | Identifies and locates people. Notes can hold anything (immigration status, health, workplace). | `*_enc` columns; the single list of sensitive fields is `sensitiveFields.ts` (#11; today an interim type in `src/domain/member.ts`) |
-| **Roles** | "Organizer," "steward" or "spokesperson" marks who to target first. | `role`, a **plaintext** column (see open question Q1) |
+| **Roles** | "Organizer," "steward" or "spokesperson" marks who to target first. | `role`, an encrypted column with no blind index ([0007](decisions/0007-key-derivation.md), Q1) |
 | **Activity timestamps** | `created_at`, `updated_at` and `expires_at` show when an org grew, when it was active and how long it keeps records. | Plaintext columns, needed for sorting and retention |
 | **The org's existence** | For some groups, the fact that they use a membership tool, or exist at all, is sensitive. | Wherever Cadre is installed or hosted; Phase 2 server metadata |
 | **Keys and passphrases** | Whoever holds them reads everything. | Store passphrase (never persisted), derived subkeys (memory only, #11), export passphrases (#14), Phase 2 key-encryption keys in OpenBao |
@@ -57,8 +57,9 @@ the **vulnerability** on our side that the path exploits, and the mitigations by
 - **Vulnerability:** a weak store passphrase; a bundle left in `Downloads`; a device left unlocked.
 - **Mitigations:**
   - Sensitive fields encrypted at rest with AES-256-GCM, a random 96-bit nonce per value and
-    the field name as AAD, under a key derived from the passphrase with Argon2id
-    (libsodium `crypto_pwhash`). Phase 1, **specified** (#11).
+    the table, record ID and field name as AAD. The passphrase is stretched with Argon2id (libsodium
+    `crypto_pwhash`) and unwraps a random master key, which is stored only in wrapped form
+    ([0007](decisions/0007-key-derivation.md)). Phase 1, **specified** (#11).
   - Separate subkeys for encryption and blind indexes via `crypto_kdf_derive_from_key`, so one
     key is never used for two jobs. Phase 1, **specified** (#11).
   - Export bundles encrypted under an export passphrase, never plaintext by default, with a
@@ -153,8 +154,11 @@ practice that lives in one person's head ([FPF](research/freedom-of-the-press-fo
 - **Vulnerability:** no way to revoke a passphrase someone already knows; exports Cadre can't
   reach.
 - **Mitigations:**
-  - Change passphrase, which re-encrypts the store. Phase 1, **specified** as part of #15
-    (may be split into a follow-up issue).
+  - Change passphrase, which re-encrypts the store. It does so only because the action rotates
+    the master key ([0007](decisions/0007-key-derivation.md), decision 4). A passphrase change
+    that only re-wrapped the same master key would let a former admin who kept a copy of the old
+    store and the old passphrase read newer copies.
+    Phase 1, **specified** as part of #15 (may be split into a follow-up issue).
   - Revocation and per-user keys on the server. Phase 2, **planned**.
   - A written offboarding checklist (rotate passphrases, re-issue exports, assume old copies
     are compromised). Phase 6 guide, **planned**.
@@ -226,7 +230,8 @@ What remains even if everything ships as designed.
 - **R1. Membership size and activity are visible.** The number of rows, the timestamps, and
   which records share a blind index (two members with the same email, how often a value
   repeats) are visible to anyone with the database file, even without the key. #12's decision
-  record has to state this explicitly.
+  record has to state this explicitly. Value lengths, rounded up to 32 bytes, and empty
+  optional fields are visible too ([0007](decisions/0007-key-derivation.md)).
 - **R2. Whoever serves the code can steal the passphrase.** In a browser, the server that
   delivers the JavaScript can deliver a version that sends the passphrase elsewhere. "The host
   cannot decrypt" holds only while the host is honest about the code it serves. Self-hosting,
@@ -281,21 +286,23 @@ each of these, but the first moves are:
 The schema and issues as they stand raise these. Each should be settled in the decision record
 of the issue named.
 
-- **Q1. Should `role` be a sensitive field?** It's plaintext today so the list can be filtered
-  by role. But a role like "organizer" marks who to target first (A2, A4). Options: encrypt it
-  and filter client-side after decrypting, or keep it plaintext and tell orgs never to put
-  anything identifying in it. → #11 (sensitive-field classification).
-- **Q2. Should free-text notes have a blind index?** The schema has `notes_bidx`, but equality
-  search on free text is rarely useful and leaks which members have identical notes (R1). The
-  likely answer is no blind index for `notes`. → #11 / #12.
+- **Q1. Should `role` be a sensitive field?** *Answered by
+  [0007](decisions/0007-key-derivation.md).* Yes: `role` is encrypted and has no blind index.
+  Role filtering happens in the browser after decryption. A role like "organizer" marks who to
+  target first (A2, A4), so it is no longer stored in plaintext. → #11.
+- **Q2. Should free-text notes have a blind index?** *Answered by
+  [0007](decisions/0007-key-derivation.md).* No: `notes` is encrypted and has no blind index.
+  Equality search on free text is rarely useful and leaks which members have identical notes
+  (R1). → #11 / #12.
 - **Q3. Do deleted rows really leave the browser store?** Postgres (and so PGlite) marks deleted
   rows dead but keeps their bytes in the data files until vacuum reuses the space, and the WAL
   may hold them too. Those bytes are ciphertext, but the key that decrypts them still exists,
   so "delete" isn't yet final against A1 or A7. Options: `VACUUM` after delete and purge,
   per-record data keys so deleting a record destroys its key, or both. → #10 / #13.
-- **Q4. Does the PBKDF2 fallback lower the bar?** If libsodium fails to load and the store is
-  keyed with PBKDF2, a stolen store is cheaper to brute-force (R6). The decision record should
-  say when the fallback is allowed and whether a store can be upgraded to Argon2id later. → #11.
+- **Q4. Does the PBKDF2 fallback lower the bar?** *Answered by
+  [0007](decisions/0007-key-derivation.md).* There is no fallback. If libsodium cannot load,
+  Cadre refuses to unlock, so a stolen store is never keyed with PBKDF2 and stays at the
+  Argon2id cost (R6). → #11.
 
 ## Revisiting this document
 
