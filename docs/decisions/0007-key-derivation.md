@@ -339,7 +339,7 @@ browser (`crypto.randomUUID()`) before encrypting, instead of relying on the col
 ### 10. A standalone package
 
 The crypto code lives in its own workspace package, `packages/keyring/` (working name
-`@cadre/keyring`). It depends only on `libsodium-wrappers-sumo` and the platform's WebCrypto.
+`@cadre/keyring`; it will be renamed to a name not scoped to Cadre, and licensed Apache-2.0, per owner decision 5). It depends only on `libsodium-wrappers-sumo` and the platform's WebCrypto.
 It imports nothing from `src/`, knows nothing about members, tables or storage engines, and
 does no I/O. Other applications can use it unchanged.
 
@@ -469,21 +469,30 @@ Added by this record:
   owned by #10 and #13.
 - The repo becomes an npm workspace with one package.
 
-## Open questions before this record is accepted
+## Owner decisions (2026-11-25)
 
-1. **Device measurement.** Does 256 MiB Argon2id run acceptably in current Chrome, Firefox and
-   Safari, including on a low-end phone? If not, choose between interactive settings everywhere
-   and refusing to run on such devices.
-2. **Passphrase minimum.** Should the UI require a minimum length when a store is created? NIST
-   SP 800-63B-4 requires 15 characters for a password used on its own, with no composition
-   rules. This record recommends adopting that in #15.
-3. **"Change passphrase" always rotates.** Confirm, given the reasoning in decision 4.
-4. **`UnsupportedFormatError` is distinguishable** from a wrong passphrase. Confirm this is an
-   acceptable exception to #15's "no hint" rule. A corrupted version byte would show this error.
-5. **Package name and license.** Cadre is AGPL-3.0-only (record 0002). Should the reusable
-   package carry the same license or a more permissive one?
-6. **No `role` blind index.** Confirm that role search by exact value on the server is not
-   needed in Phase 2.
+The owner answered the open questions on 2026-11-25. The record stays `proposed` until the
+device measurement in item 1 is done.
+
+1. **Device measurement: measure first.** Time MODERATE (256 MiB) and INTERACTIVE (64 MiB)
+   Argon2id in current Chrome, Firefox and Safari, and on a low-end phone. If the slowest
+   target device unlocks in about 2 seconds or less with MODERATE, keep MODERATE. Otherwise
+   use INTERACTIVE everywhere; the 15-character minimum in item 2 is what makes that
+   acceptable. Record the measurements here before changing the status to `accepted`.
+2. **Passphrase minimum: yes, 15 characters,** with no composition rules, per NIST
+   SP 800-63B-4. #15 enforces it when a store is created and when the passphrase changes.
+3. **"Change passphrase" always rotates: confirmed.** It creates a new master key and
+   re-encrypts every field, as decision 4 describes.
+4. **`UnsupportedFormatError` may be distinguishable: accepted.** It reveals only that the
+   data was written by a different format version, which is not sensitive, and without it a
+   user on an older version would see "wrong passphrase" forever.
+5. **Package license: Apache-2.0, not AGPL.** The reusable package is licensed separately
+   from Cadre so that other applications, including closed-source ones, can use it. Apache-2.0
+   over MIT for its explicit patent grant. It gets a name that isn't scoped to Cadre (to be
+   chosen), and should move to its own repository before it takes outside contributions, so
+   AGPL-licensed contributions to Cadre never mix into it.
+6. **No `role` blind index: confirmed.** Phase 2 will not need server-side exact-match search
+   by role. Role filtering happens in the client after decryption.
 
 ## Sources
 
