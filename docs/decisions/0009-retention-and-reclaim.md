@@ -1,6 +1,6 @@
 # 0009 — Retention default and reclaiming deleted rows
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-11-26
 
 Answers Q3 in `docs/threat-model.md` for now, and records how retention defaults work (#13).
