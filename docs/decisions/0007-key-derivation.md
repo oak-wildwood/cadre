@@ -1,6 +1,6 @@
 # 0007 — Key derivation and field encryption
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-11-25
 **Issue:** #11. Depended on by #12 (blind index), #14 (export bundle) and #15 (UI).
 
@@ -99,8 +99,8 @@ login leak, and the wait is paid once per session.
 **Cost.** Measured for this record: about 0.6 seconds in Node 24 on a recent laptop. libsodium
 documents about 0.7 seconds natively on a 2.8 GHz Core i7. In a browser the work runs in
 WebAssembly, on one thread, and needs 256 MiB of free memory for that moment.
-`UNVERIFIED`: timing and memory behavior in real browsers, and on low-end phones, has not been
-measured. This must be measured before this record is accepted (see open questions). If a
+Measured in Chrome and Safari on macOS at 520 ms and 585 ms (see owner decision 1).
+Firefox and a low-end phone are still to be measured before the first release (#53). If a
 device cannot allocate the memory, unlock fails with a "this device cannot run the encryption"
 error. It does not fall back to weaker settings. The work should run in a Web Worker so the
 page does not freeze.
@@ -471,14 +471,26 @@ Added by this record:
 
 ## Owner decisions (2026-11-25)
 
-The owner answered the open questions on 2026-11-25. The record stays `proposed` until the
-device measurement in item 1 is done.
+The owner answered the open questions on 2026-11-25, and the record was accepted the same day.
+The Firefox and low-end phone measurements in item 1 are still owed before the first release
+(#53).
 
-1. **Device measurement: measure first.** Time MODERATE (256 MiB) and INTERACTIVE (64 MiB)
-   Argon2id in current Chrome, Firefox and Safari, and on a low-end phone. If the slowest
-   target device unlocks in about 2 seconds or less with MODERATE, keep MODERATE. Otherwise
-   use INTERACTIVE everywhere; the 15-character minimum in item 2 is what makes that
-   acceptable. Record the measurements here before changing the status to `accepted`.
+1. **Device measurement: keep MODERATE, finish measuring before release.** The rule: if the
+   slowest target device unlocks in about 2 seconds or less with MODERATE, keep MODERATE;
+   otherwise use INTERACTIVE everywhere, which the 15-character minimum in item 2 makes
+   acceptable. Measured 2026-11-25 (median of 3 runs, libsodium 0.8.4):
+
+   | Device | MODERATE (256 MiB, 3 passes) | INTERACTIVE (64 MiB, 2 passes) |
+   |---|---|---|
+   | Chrome 157, macOS, 14 cores, 16 GB | 520 ms | 79 ms |
+   | Safari 18.6, macOS | 585 ms | 90 ms |
+   | Node 24, same laptop (reference) | 616 ms | 116 ms |
+   | Firefox | not yet measured (#53) | |
+   | Low-end phone | not yet measured (#53) | |
+
+   Accepting before the phone measurement is safe: settings are stored per store and the slot
+   is re-wrapped to current defaults after unlock, so lowering the default later changes one
+   constant and touches no field ciphertext.
 2. **Passphrase minimum: yes, 15 characters,** with no composition rules, per NIST
    SP 800-63B-4. #15 enforces it when a store is created and when the passphrase changes.
 3. **"Change passphrase" always rotates: confirmed.** It creates a new master key and
