@@ -338,8 +338,8 @@ browser (`crypto.randomUUID()`) before encrypting, instead of relying on the col
 
 ### 10. A standalone package
 
-The crypto code lives in its own workspace package, `packages/keyring/` (working name
-`@cadre/keyring`; it will be renamed to a name not scoped to Cadre, and licensed Apache-2.0, per owner decision 5). It depends only on `libsodium-wrappers-sumo` and the platform's WebCrypto.
+The crypto code lives in its own workspace package, `packages/keyslot/`, published as
+`keyslot` and licensed Apache-2.0 (owner decision 5). It depends only on `libsodium-wrappers-sumo` and the platform's WebCrypto.
 It imports nothing from `src/`, knows nothing about members, tables or storage engines, and
 does no I/O. Other applications can use it unchanged.
 
@@ -488,8 +488,7 @@ device measurement in item 1 is done.
    user on an older version would see "wrong passphrase" forever.
 5. **Package license: Apache-2.0, not AGPL.** The reusable package is licensed separately
    from Cadre so that other applications, including closed-source ones, can use it. Apache-2.0
-   over MIT for its explicit patent grant. It gets a name that isn't scoped to Cadre (to be
-   chosen), and should move to its own repository before it takes outside contributions, so
+   over MIT for its explicit patent grant. It is named **`keyslot`**, not scoped to Cadre, and should move to its own repository before it takes outside contributions, so
    AGPL-licensed contributions to Cadre never mix into it.
 6. **No `role` blind index: confirmed.** Phase 2 will not need server-side exact-match search
    by role. Role filtering happens in the client after decryption.
