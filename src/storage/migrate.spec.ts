@@ -40,7 +40,7 @@ describe('migrate', () => {
   it('applies every migration on disk, in order', async () => {
     const result = await migrate(query, DISK_MIGRATIONS)
 
-    expect(ALL_VERSIONS).toEqual([1, 2, 3])
+    expect(ALL_VERSIONS).toEqual([1, 2, 3, 4])
     expect(result.applied.map((m) => m.version)).toEqual(ALL_VERSIONS)
   })
 

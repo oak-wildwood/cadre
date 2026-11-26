@@ -1,6 +1,6 @@
 # 0008 — Blind indexes: equality only, per-field normalization
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-11-26
 **Issue:** #12. Builds on [0007](0007-key-derivation.md) (the blind-index subkey and the list of
 indexed fields). Row names such as A3 and R1 refer to [the threat model](../threat-model.md).

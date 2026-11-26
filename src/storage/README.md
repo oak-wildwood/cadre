@@ -5,8 +5,11 @@ domain code depend on the interface in `src/domain/`, never on an adapter direct
 
 `PGliteRepository.ts` is the browser adapter; see "The browser store" in `docs/dev.md`. It
 encrypts through `src/crypto/memberFields.ts` and writes `*_bidx` with `src/crypto/blindIndex.ts`.
-Two parts are interim and owned by later issues: blind-index normalization (#12) and the export
-bundle format in `src/crypto/interimExportBundle.ts` (#14).
+Blind indexes follow record 0008: equality only, per-field normalization, no index for a value
+that normalizes to empty. On open, the repository compares the store's
+`settings.blind_index_rules_version` with `BLIND_INDEX_RULES_VERSION` and rebuilds every index if
+they differ (refusing a store from newer rules). The export bundle format in
+`src/crypto/interimExportBundle.ts` is still interim (#14).
 
 ## Migrations
 

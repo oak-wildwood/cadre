@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { PGlite } from '@electric-sql/pglite'
-import { createPassphraseSlot, MIN_KDF_PARAMS, UnlockError } from 'keyslot'
+import { createPassphraseSlot, MIN_KDF_PARAMS, UnlockError, UnsupportedFormatError } from 'keyslot'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { BLIND_INDEX_RULES_VERSION } from '../crypto/blindIndex'
 import type { ListQuery, Page } from '../domain/listQuery'
 import type { Member } from '../domain/member'
 import { describeRepositoryContract } from '../domain/repository.contract.spec'
@@ -16,6 +17,8 @@ import { PGliteRepository } from './PGliteRepository'
 const { keyRing } = await createPassphraseSlot('test passphrase, not real', {
   kdf: MIN_KDF_PARAMS,
 })
+
+type Row = Record<string, unknown>
 
 const open: PGliteRepository[] = []
 const tempDirs: string[] = []
@@ -126,6 +129,81 @@ describe('PGliteRepository', () => {
 
     expect(await repo.findByBlindIndex('displayName', 'Quillfeather')).toEqual([])
     expect(await repo.findByBlindIndex('email', 'quillfeather.fixture')).toEqual([])
+    expect(await repo.findByBlindIndex('phone', '0142')).toEqual([])
+  })
+
+  it('finds a member by email and phone under the field-specific rules (record 0008)', async () => {
+    const repo = makeRepo()
+    const created = await repo.create(ada)
+
+    const byEmail = await repo.findByBlindIndex('email', ' QUILLFEATHER.Fixture@Example.INVALID ')
+    const byPhone = await repo.findByBlindIndex('phone', '+1 (555) 0142 7731')
+    expect(byEmail.map((m) => m.id)).toEqual([created.id])
+    expect(byPhone.map((m) => m.id)).toEqual([created.id])
+    // No country-code inference.
+    expect(await repo.findByBlindIndex('phone', '555 0142 7731')).toEqual([])
+  })
+
+  it('stores no index for a blank value, and a blank search matches nothing', async () => {
+    const db = new PGlite()
+    const repo = makeRepo({ db })
+    await repo.create({ ...ada, phone: ' + ', email: '   ' })
+    await repo.create({ ...ada, phone: '()', email: '' })
+
+    const { rows } = await db.query<Row>('SELECT phone_bidx, email_bidx FROM members')
+    expect(rows).toEqual([
+      { phone_bidx: null, email_bidx: null },
+      { phone_bidx: null, email_bidx: null },
+    ])
+    expect(await repo.findByBlindIndex('phone', '')).toEqual([])
+    expect(await repo.findByBlindIndex('email', ' ')).toEqual([])
+  })
+
+  it('rejects a display name that normalizes to empty, writing nothing', async () => {
+    const db = new PGlite()
+    const repo = makeRepo({ db })
+    await expect(repo.create({ ...ada, displayName: ' \t ' })).rejects.toThrow(/displayName/)
+    const created = await repo.create(ada)
+    await expect(repo.update(created.id, { displayName: '　' })).rejects.toThrow(/displayName/)
+
+    expect(await repo.read(created.id)).toEqual(created)
+    const { rows } = await db.query('SELECT 1 FROM members')
+    expect(rows).toHaveLength(1)
+  })
+
+  it('records the blind-index rules version and rebuilds indexes from an unknown one', async () => {
+    const db = new PGlite()
+    const first = makeRepo({ db })
+    const created = await first.create(ada)
+    const { rows } = await db.query<Row>('SELECT blind_index_rules_version AS v FROM settings')
+    expect(rows).toEqual([{ v: BLIND_INDEX_RULES_VERSION }])
+
+    // A store from before the version was recorded, with indexes from other rules.
+    await db.exec(`UPDATE settings SET blind_index_rules_version = NULL;
+                   UPDATE members SET email_bidx = '\\x00', phone_bidx = '\\x00'`)
+    expect(await first.findByBlindIndex('email', ada.email)).toEqual([])
+
+    const reopened = new PGliteRepository({ keyRing, db })
+    await reopened.ready()
+    expect((await reopened.findByBlindIndex('email', ada.email)).map((m) => m.id)).toEqual([
+      created.id,
+    ])
+    expect((await reopened.findByBlindIndex('phone', ada.phone)).map((m) => m.id)).toEqual([
+      created.id,
+    ])
+    const after = await db.query<Row>('SELECT blind_index_rules_version AS v FROM settings')
+    expect(after.rows).toEqual([{ v: BLIND_INDEX_RULES_VERSION }])
+  })
+
+  it('refuses a store whose indexes come from newer rules', async () => {
+    const db = new PGlite()
+    await makeRepo({ db }).ready()
+    await db.query('UPDATE settings SET blind_index_rules_version = $1', [
+      BLIND_INDEX_RULES_VERSION + 1,
+    ])
+
+    const reopened = new PGliteRepository({ keyRing, db })
+    await expect(reopened.ready()).rejects.toBeInstanceOf(UnsupportedFormatError)
   })
 
   it('removes a deleted row\u2019s ciphertext from every data file outside the WAL', async () => {
