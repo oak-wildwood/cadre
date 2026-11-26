@@ -4,6 +4,6 @@
   "compilerOptions": {
     "composite": false,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.vitest.tsbuildinfo",
-    "types": ["happy-dom"]
+    "types": ["happy-dom", "node"]
   }
 }
