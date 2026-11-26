@@ -57,7 +57,7 @@ the **vulnerability** on our side that the path exploits, and the mitigations by
 - **Vulnerability:** a weak store passphrase; a bundle left in `Downloads`; a device left unlocked.
 - **Mitigations:**
   - Sensitive fields encrypted at rest with AES-256-GCM, a random 96-bit nonce per value and
-    the field name as AAD. The passphrase is stretched with Argon2id (libsodium
+    the table, record ID and field name as AAD. The passphrase is stretched with Argon2id (libsodium
     `crypto_pwhash`) and unwraps a random master key, which is stored only in wrapped form
     ([0007](decisions/0007-key-derivation.md)). Phase 1, **specified** (#11).
   - Separate subkeys for encryption and blind indexes via `crypto_kdf_derive_from_key`, so one
@@ -155,8 +155,9 @@ practice that lives in one person's head ([FPF](research/freedom-of-the-press-fo
   reach.
 - **Mitigations:**
   - Change passphrase, which re-encrypts the store. It does so only because the action rotates
-    the master key ([0007](decisions/0007-key-derivation.md), decision 4); a passphrase change
-    that kept the same master key would not reach data the old key already protects.
+    the master key ([0007](decisions/0007-key-derivation.md), decision 4). A passphrase change
+    that only re-wrapped the same master key would let a former admin who kept a copy of the old
+    store and the old passphrase read newer copies.
     Phase 1, **specified** as part of #15 (may be split into a follow-up issue).
   - Revocation and per-user keys on the server. Phase 2, **planned**.
   - A written offboarding checklist (rotate passphrases, re-issue exports, assume old copies
