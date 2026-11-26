@@ -13,8 +13,8 @@ import { blindIndex } from '../crypto/blindIndex'
 import { openBundle, sealBundle } from '../crypto/interimExportBundle'
 import {
   decryptMemberFields,
+  encryptMemberField,
   encryptMemberFields,
-  memberBinding,
   newMemberId,
   type EncryptedValues,
   type SensitiveValues,
@@ -156,15 +156,7 @@ export class PGliteRepository implements LedgerRepository {
           continue
         }
         const value = patch[field]
-        set(
-          encryptedColumn(field),
-          value === null
-            ? null
-            : await this.keyRing.encryptField(
-                new TextEncoder().encode(value),
-                memberBinding(id, field),
-              ),
-        )
+        set(encryptedColumn(field), await encryptMemberField(this.keyRing, id, field, value))
         if (isBlindIndexed(field)) {
           set(
             blindIndexColumn(field),
@@ -210,10 +202,10 @@ export class PGliteRepository implements LedgerRepository {
     if (!Number.isSafeInteger(limit) || limit < 1) {
       throw new RangeError('limit must be a positive integer')
     }
-    const orderExpression = ORDER_EXPRESSIONS[orderBy]
-    if (!orderExpression) {
+    if (!Object.hasOwn(ORDER_EXPRESSIONS, orderBy)) {
       throw new RangeError('orderBy must be createdAt, updatedAt or expiresAt')
     }
+    const orderExpression = ORDER_EXPRESSIONS[orderBy]
     if (orderDirection !== 'asc' && orderDirection !== 'desc') {
       throw new RangeError('orderDirection must be asc or desc')
     }
@@ -234,22 +226,26 @@ export class PGliteRepository implements LedgerRepository {
       where.push(`expires_at > ${param(checkedDate(filter.expiresAfter))}`)
     }
     if (cursor !== null) {
-      // Keyset pagination: the cursor is the last id of the previous page. The id breaks ties
-      // between equal timestamps, so a page boundary never skips or repeats a row.
+      // Keyset pagination: the cursor is the last id of the previous page. The sort key is
+      // compared inside Postgres, never round-tripped through a JS Date (which would lose
+      // precision and can't hold '-infinity'), and `seq` breaks ties in insertion order.
       const { rows } = isUuid(cursor)
-        ? await db.query<Row>(`SELECT ${orderExpression} AS k FROM members WHERE id = $1`, [cursor])
+        ? await db.query<Row>(`SELECT 1 FROM members WHERE id = $1`, [cursor])
         : { rows: [] }
       if (!rows[0]) {
         throw new RangeError('Unknown cursor')
       }
-      where.push(`(${orderExpression}, id) ${comparison} (${param(rows[0].k)}, ${param(cursor)})`)
+      where.push(
+        `(${orderExpression}, seq) ${comparison} ` +
+          `(SELECT ${orderExpression}, seq FROM members WHERE id = ${param(cursor)})`,
+      )
     }
 
     const direction = orderDirection.toUpperCase()
     const { rows } = await db.query<Row>(
       `SELECT ${SELECT_COLUMNS} FROM members
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY ${orderExpression} ${direction}, id ${direction}
+       ORDER BY ${orderExpression} ${direction}, seq ${direction}
        LIMIT ${param(limit + 1)}`,
       values,
     )
@@ -269,7 +265,7 @@ export class PGliteRepository implements LedgerRepository {
     const index = await blindIndex(this.keyRing, field, value)
     const { rows } = await db.query<Row>(
       `SELECT ${SELECT_COLUMNS} FROM members WHERE ${blindIndexColumn(field)} = $1
-       ORDER BY created_at, id`,
+       ORDER BY created_at, seq`,
       [index],
     )
     return Promise.all(rows.map((row) => this.toMember(row)))
@@ -290,7 +286,7 @@ export class PGliteRepository implements LedgerRepository {
   async exportEncrypted(opts: ExportOptions): Promise<Uint8Array> {
     const db = await this.opened
     const { rows } = await db.query<Row>(
-      `SELECT ${SELECT_COLUMNS} FROM members ORDER BY created_at, id`,
+      `SELECT ${SELECT_COLUMNS} FROM members ORDER BY created_at, seq`,
     )
     const members = await Promise.all(rows.map((row) => this.toMember(row)))
     const payload = new TextEncoder().encode(JSON.stringify({ members }))
@@ -341,7 +337,8 @@ export class PGliteRepository implements LedgerRepository {
       values.push(checkedDate(timestamps.createdAt), checkedDate(timestamps.updatedAt))
       placeholders.push(`$${values.length - 1}`, `$${values.length}`)
     } else {
-      // clock_timestamp(), not now(): microsecond, per-statement times keep insertion order.
+      // clock_timestamp(), not now(): the time of this statement. Ties (PGlite's clock ticks
+      // in milliseconds) are ordered by `seq`.
       columns.push('created_at', 'updated_at')
       placeholders.push('clock_timestamp()', 'clock_timestamp()')
     }

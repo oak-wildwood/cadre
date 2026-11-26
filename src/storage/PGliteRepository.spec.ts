@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { ListQuery, Page } from '../domain/listQuery'
+import type { Member } from '../domain/member'
 import { describeRepositoryContract } from '../domain/repository.contract.spec'
 import { SENSITIVE_FIELD_NAMES, encryptedColumn } from '../domain/sensitiveFields'
 import { BUNDLED_MIGRATIONS } from './bundledMigrations'
@@ -54,11 +56,12 @@ describe('PGliteRepository', () => {
     const repo = makeRepo({ db })
     await repo.ready()
 
-    expect(BUNDLED_MIGRATIONS.map((m) => m.version).sort()).toEqual([1, 2])
+    const versions = BUNDLED_MIGRATIONS.map((m) => m.version).sort((a, b) => a - b)
+    expect(versions.length).toBeGreaterThan(0)
     const { rows } = await db.query<{ version: number }>(
       'SELECT version FROM schema_migrations ORDER BY version',
     )
-    expect(rows.map((r) => r.version)).toEqual([1, 2])
+    expect(rows.map((r) => r.version)).toEqual(versions)
   })
 
   it('survives a reload: a fresh instance on the same data dir reads the same member', async () => {
@@ -146,6 +149,36 @@ describe('PGliteRepository', () => {
     )
   })
 
+  it('pages through back-to-back creates in insertion order, with no repeats', async () => {
+    const repo = makeRepo()
+    const ids: string[] = []
+    for (let i = 0; i < 12; i++) {
+      ids.push((await repo.create({ ...ada, displayName: `Member ${i}` })).id)
+    }
+
+    expect(await pageAll(repo, { limit: 5, orderBy: 'createdAt' })).toEqual(ids)
+    expect(await pageAll(repo, { limit: 5, orderBy: 'createdAt', orderDirection: 'desc' })).toEqual(
+      [...ids].reverse(),
+    )
+  })
+
+  it('pages by expiresAt with never-expiring members first', async () => {
+    const repo = makeRepo()
+    const never = [
+      (await repo.create({ ...ada, expiresAt: null })).id,
+      (await repo.create({ ...ada, expiresAt: null })).id,
+      (await repo.create({ ...ada, expiresAt: null })).id,
+    ]
+    const later = (await repo.create({ ...ada, expiresAt: new Date('2031-01-01T00:00:00Z') })).id
+    const sooner = (await repo.create({ ...ada, expiresAt: new Date('2030-01-01T00:00:00Z') })).id
+
+    expect(await pageAll(repo, { limit: 2, orderBy: 'expiresAt' })).toEqual([
+      ...never,
+      sooner,
+      later,
+    ])
+  })
+
   it('refuses to import into a store that already has members', async () => {
     const source = makeRepo()
     await source.create(ada)
@@ -177,6 +210,17 @@ describe('PGliteRepository', () => {
     expect(await target.read(created.id)).toEqual(created)
   })
 })
+
+async function pageAll(repo: PGliteRepository, query: ListQuery): Promise<string[]> {
+  const ids: string[] = []
+  let cursor: string | null = null
+  do {
+    const page: Page<Member> = await repo.list({ ...query, cursor })
+    ids.push(...page.items.map((m) => m.id))
+    cursor = page.nextCursor
+  } while (cursor !== null)
+  return ids
+}
 
 async function dump(db: PGlite): Promise<Buffer> {
   return Buffer.from(await (await db.dumpDataDir('none')).arrayBuffer())

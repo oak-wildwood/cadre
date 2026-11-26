@@ -40,7 +40,7 @@ describe('migrate', () => {
   it('applies every migration on disk, in order', async () => {
     const result = await migrate(query, DISK_MIGRATIONS)
 
-    expect(ALL_VERSIONS).toEqual([1, 2])
+    expect(ALL_VERSIONS).toEqual([1, 2, 3])
     expect(result.applied.map((m) => m.version)).toEqual(ALL_VERSIONS)
   })
 
@@ -52,7 +52,15 @@ describe('migrate', () => {
     `)
     const columnNames = memberColumns.map((row) => row.column_name).sort()
     expect(columnNames).toEqual(
-      ['id', 'created_at', 'updated_at', 'expires_at', ...ENC_COLUMNS, ...BIDX_COLUMNS].sort(),
+      [
+        'id',
+        'seq',
+        'created_at',
+        'updated_at',
+        'expires_at',
+        ...ENC_COLUMNS,
+        ...BIDX_COLUMNS,
+      ].sort(),
     )
     // Record 0007, decision 9: no plaintext role, no role or notes blind index.
     expect(columnNames).not.toContain('role')
@@ -69,7 +77,7 @@ describe('migrate', () => {
     const { rows } = await query(`SELECT indexdef FROM pg_indexes WHERE tablename = 'members'`)
     const indexedColumns = rows.map((row) => /\((\w+)\)$/.exec(String(row.indexdef))?.[1])
 
-    expect(indexedColumns.sort()).toEqual(['expires_at', 'id', ...BIDX_COLUMNS].sort())
+    expect(indexedColumns.sort()).toEqual(['expires_at', 'id', 'seq', ...BIDX_COLUMNS].sort())
   })
 
   it('makes the member id a required, client-supplied value', async () => {

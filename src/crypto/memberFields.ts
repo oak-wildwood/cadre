@@ -32,20 +32,27 @@ export function memberBinding(id: MemberId, field: SensitiveField): FieldBinding
   return { namespace: MEMBERS_NAMESPACE, recordId, field }
 }
 
+/** Encrypts one sensitive field. `null` stays `null`. */
+export async function encryptMemberField(
+  keyRing: KeyRing,
+  id: MemberId,
+  field: SensitiveField,
+  value: string | null,
+): Promise<Uint8Array | null> {
+  return value === null
+    ? null
+    : keyRing.encryptField(new TextEncoder().encode(value), memberBinding(id, field))
+}
+
 /** Encrypts every sensitive field. `null` stays `null`: an empty optional field is visible. */
 export async function encryptMemberFields(
   keyRing: KeyRing,
   id: MemberId,
   values: SensitiveValues,
 ): Promise<EncryptedValues> {
-  const encoder = new TextEncoder()
   const out = {} as EncryptedValues
   for (const field of SENSITIVE_FIELD_NAMES) {
-    const value = values[field]
-    out[field] =
-      value === null
-        ? null
-        : await keyRing.encryptField(encoder.encode(value), memberBinding(id, field))
+    out[field] = await encryptMemberField(keyRing, id, field, values[field])
   }
   return out
 }
