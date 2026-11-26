@@ -327,7 +327,7 @@ export class PGliteRepository implements LedgerRepository {
       [now],
     )
     const members = await Promise.all(rows.map((row) => this.toMember(row)))
-    const payload = encodeExportPayload({ exportedAt: now, members })
+    const payload = encodeExportPayload({ exportedAt: new Date(), members })
     try {
       return await sealBundle(payload, opts.passphrase, this.exportKdf)
     } finally {

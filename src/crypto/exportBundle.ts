@@ -29,6 +29,7 @@ const HEADER_BYTES = MAGIC_BYTES.length + 1 + 2
 const BUNDLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** In a v1 bundle the inner key slot and field value are always format 1, passphrase kind. */
 const INNER_FORMAT_V1 = 0x01
+const PASSPHRASE_SLOT_KIND = 0x01
 
 /** Export passphrases must be at least this many characters (record 0010, decision 3). */
 export const MIN_EXPORT_PASSPHRASE_LENGTH = 15
@@ -149,7 +150,7 @@ export async function openBundle(bundle: Uint8Array, passphrase: string): Promis
   const sealed = bundle.subarray(offset)
   // A v1 bundle only ever holds a format-1 passphrase slot and a format-1 field value. Any other
   // inner version is damage, not a newer Cadre, so it must not reach keyslot's "update" error.
-  if (slot[0] !== INNER_FORMAT_V1 || slot[1] !== INNER_FORMAT_V1) {
+  if (slot[0] !== INNER_FORMAT_V1 || slot[1] !== PASSPHRASE_SLOT_KIND) {
     throw new UnlockError()
   }
   const keyRing = await unlock(passphrase, slot)
