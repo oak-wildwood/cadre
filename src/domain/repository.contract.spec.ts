@@ -57,6 +57,20 @@ export function describeRepositoryContract(factory: () => LedgerRepository): voi
 
         expect(await repo.read(created.id)).toBeNull()
       })
+
+      it('deletes a member; the member is absent from list() and unreachable via findByBlindIndex()', async () => {
+        const deleted = await repo.create(makeNewMember({ displayName: 'Alice Deleted' }))
+        const other = await repo.create(makeNewMember({ displayName: 'Bob Survivor' }))
+
+        await repo.delete(deleted.id)
+
+        const listResults = await repo.list({ limit: 100 })
+        expect(listResults.items.map((m) => m.id)).not.toContain(deleted.id)
+        expect(listResults.items.map((m) => m.id)).toContain(other.id)
+
+        const blindIndexResults = await repo.findByBlindIndex('displayName', 'alice deleted')
+        expect(blindIndexResults.map((m) => m.id)).not.toContain(deleted.id)
+      })
     })
 
     describe('list', () => {
