@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { BLIND_INDEX_RULES_VERSION } from '../crypto/blindIndex'
+import { encryptMemberField } from '../crypto/memberFields'
 import type { ListQuery, Page } from '../domain/listQuery'
 import type { Member } from '../domain/member'
 import { describeRepositoryContract } from '../domain/repository.contract.spec'
@@ -193,6 +194,31 @@ describe('PGliteRepository', () => {
     ])
     const after = await db.query<Row>('SELECT blind_index_rules_version AS v FROM settings')
     expect(after.rows).toEqual([{ v: BLIND_INDEX_RULES_VERSION }])
+  })
+
+  it('still opens a store holding a name that now normalizes to empty, keeping its old index', async () => {
+    const db = new PGlite()
+    const first = makeRepo({ db })
+    const created = await first.create(ada)
+    // A name written under interim rules that allowed it: whitespace only.
+    const blankName = await encryptMemberField(keyRing, created.id, 'displayName', ' \t ')
+    await db.query('UPDATE members SET display_name_enc = $1, email_bidx = $2 WHERE id = $3', [
+      blankName,
+      new Uint8Array([0]),
+      created.id,
+    ])
+    await db.exec('UPDATE settings SET blind_index_rules_version = NULL')
+    const before = await db.query<Row>('SELECT display_name_bidx FROM members')
+
+    const reopened = new PGliteRepository({ keyRing, db })
+    await reopened.ready()
+
+    const after = await db.query<Row>('SELECT display_name_bidx FROM members')
+    expect(after.rows).toEqual(before.rows)
+    // The rest of the row was still rebuilt.
+    expect((await reopened.findByBlindIndex('email', ada.email)).map((m) => m.id)).toEqual([
+      created.id,
+    ])
   })
 
   it('refuses a store whose indexes come from newer rules', async () => {

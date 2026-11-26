@@ -357,15 +357,23 @@ export class PGliteRepository implements LedgerRepository {
     return rows[0]!
   }
 
+  /** A field's index, or `null` for a missing value or one that normalizes to empty. */
+  private async indexOrNull(
+    field: BlindIndexedField,
+    value: string | null,
+  ): Promise<Uint8Array | null> {
+    return value === null ? null : blindIndex(this.keyRing, field, value)
+  }
+
   /**
-   * The index to store for a field. `displayName` is required and its column is NOT NULL, so a
+   * The index to write for a field. `displayName` is required and its column is NOT NULL, so a
    * name that normalizes to empty is rejected here, before anything is written.
    */
   private async indexFor(
     field: BlindIndexedField,
     value: string | null,
   ): Promise<Uint8Array | null> {
-    const index = value === null ? null : await blindIndex(this.keyRing, field, value)
+    const index = await this.indexOrNull(field, value)
     if (index === null && field === 'displayName') {
       throw new TypeError('displayName is required')
     }
@@ -396,8 +404,7 @@ export class PGliteRepository implements LedgerRepository {
         const assignments: string[] = []
         const values: unknown[] = []
         for (const field of BLIND_INDEXED_FIELDS) {
-          const value = member[field] ?? null
-          const index = value === null ? null : await blindIndex(this.keyRing, field, value)
+          const index = await this.indexOrNull(field, member[field] ?? null)
           if (index === null && field === 'displayName') {
             // Written before names had to normalize to something; the column is NOT NULL, so
             // keep the old index rather than refuse to open the store.
