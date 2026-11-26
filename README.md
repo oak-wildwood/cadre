@@ -27,6 +27,9 @@ before it reaches storage, and deleted on a schedule you choose.
 
 ## Threat model (summary)
 
+The full model, with assets, eight adversaries, residual risk and assumptions, is in
+[docs/threat-model.md](docs/threat-model.md). The table below is the short version.
+
 | Adversary | Capability | What Cadre does about it |
 |---|---|---|
 | Opportunistic attacker | Stolen laptop, leaked backup, phished account | Client-side + field-level encryption; no plaintext PII at rest anywhere |
