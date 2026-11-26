@@ -48,14 +48,20 @@ export function useRetention(options: RetentionOptions): Retention {
     // Overlapping runs (a slow purge and the next tick) share one result.
     running ??= repository
       .purgeExpired(now())
-      .then(({ purged }) => {
-        if (purged > 0) {
-          notice.value = purged
-          onPurged?.(purged)
-        }
-        return purged
-      })
-      .catch(() => 0)
+      .then(
+        ({ purged }) => {
+          if (purged > 0) {
+            notice.value = purged
+            try {
+              onPurged?.(purged)
+            } catch {
+              // A broken listener must not change what the purge reports.
+            }
+          }
+          return purged
+        },
+        () => 0,
+      )
       .finally(() => {
         running = null
       })

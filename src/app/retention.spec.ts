@@ -18,6 +18,9 @@ function fakeTimers() {
   }
 }
 
+/** Lets a finished purge clear its in-flight marker before the next tick. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 describe('useRetention', () => {
   it('purges on open, with the injected clock, before any timer fires', async () => {
     const now = new Date('2031-01-01T00:00:00Z')
@@ -45,10 +48,14 @@ describe('useRetention', () => {
     const retention = useRetention({ repository: { purgeExpired }, intervalMs: 5, ...timers })
 
     await retention.start()
+    expect(purgeExpired).toHaveBeenCalledTimes(1)
     timers.tick()
-    await retention.run()
+    await settle()
+    expect(purgeExpired).toHaveBeenCalledTimes(2)
+    timers.tick()
+    await settle()
+    expect(purgeExpired).toHaveBeenCalledTimes(3)
     expect(timers.setInterval).toHaveBeenCalledWith(expect.any(Function), 5)
-    expect(purgeExpired.mock.calls.length).toBeGreaterThanOrEqual(2)
 
     retention.stop()
     expect(timers.active()).toBe(0)
@@ -67,6 +74,17 @@ describe('useRetention', () => {
     expect(retention.notice.value).toBe(2)
     retention.dismiss()
     expect(retention.notice.value).toBeNull()
+  })
+
+  it('reports the real count even if the onPurged listener throws', async () => {
+    const purgeExpired = vi.fn().mockResolvedValue({ purged: 2 })
+    const onPurged = vi.fn(() => {
+      throw new Error('listener broke')
+    })
+    const retention = useRetention({ repository: { purgeExpired }, onPurged, ...fakeTimers() })
+
+    await expect(retention.run()).resolves.toBe(2)
+    expect(retention.notice.value).toBe(2)
   })
 
   it('survives a failed purge', async () => {
