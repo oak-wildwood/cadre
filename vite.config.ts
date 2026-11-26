@@ -18,6 +18,6 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: false,
-    include: ['src/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'packages/*/test/**/*.spec.ts'],
   },
 })

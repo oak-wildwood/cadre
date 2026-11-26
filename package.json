@@ -18,10 +18,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.vitest.json && vue-tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.vitest.json && vue-tsc --noEmit -p tsconfig.node.json && npm run typecheck --workspace keyslot",
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "keyslot": "0.1.0",
     "vue": "^3.5.42"
   },
   "devDependencies": {
@@ -45,5 +46,8 @@
     "vite": "^8.3.0",
     "vitest": "^5.0.1",
     "vue-tsc": "^3.3.11"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

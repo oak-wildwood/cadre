@@ -1,12 +1,7 @@
 export type MemberId = string
 
-/**
- * Fields whose plaintext must never reach storage. This is the interim
- * source of truth until `sensitiveFields.ts` lands (separate issue); adapters
- * enforce the actual encrypt/blind-index behavior, this type just names
- * which `Member` fields `findByBlindIndex` may be called with.
- */
-export type SensitiveField = 'displayName' | 'email' | 'phone' | 'notes'
+/** Defined, with which fields are blind-indexed, in `sensitiveFields.ts`. */
+export type { SensitiveField, BlindIndexedField } from './sensitiveFields'
 
 export interface Member {
   id: MemberId
