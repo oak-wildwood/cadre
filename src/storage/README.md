@@ -3,6 +3,11 @@
 Repository-interface implementations (PGlite in the browser, Postgres on the server). UI and
 domain code depend on the interface in `src/domain/`, never on an adapter directly.
 
+`PGliteRepository.ts` is the browser adapter; see "The browser store" in `docs/dev.md`. It
+encrypts through `src/crypto/memberFields.ts` and writes `*_bidx` with `src/crypto/blindIndex.ts`.
+Two parts are interim and owned by later issues: blind-index normalization (#12) and the export
+bundle format in `src/crypto/interimExportBundle.ts` (#14).
+
 ## Migrations
 
 Schema lives in `migrations/NNNN_<slug>.sql` at the repo root, forward-only. `migrate.ts` is the

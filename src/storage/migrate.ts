@@ -99,3 +99,15 @@ function assertValidMigration(migration: Migration): void {
     throw new Error(`Invalid migration name (expected [a-z0-9_]+): ${migration.name}`)
   }
 }
+
+const FILENAME_PATTERN = /^(\d+)_(.+)\.sql$/
+
+/** Parses `0001_init.sql` into `{ version: 1, name: "init" }`. Shared by the Node and browser loaders. */
+export function parseMigrationFilename(filename: string): Pick<Migration, 'version' | 'name'> {
+  const match = FILENAME_PATTERN.exec(filename)
+  if (!match) {
+    throw new Error(`Migration filename doesn't match NNNN_slug.sql: ${filename}`)
+  }
+  const [, version, name] = match
+  return { version: Number(version), name: name! }
+}
