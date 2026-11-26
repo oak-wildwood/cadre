@@ -70,10 +70,11 @@ findable there (`src/crypto/storeDump.spec.ts` automates that check on a raw dum
 rows themselves, query the store from a test or a scratch script with
 `new PGlite('idb://cadre')`; never paste real member data into an issue.
 
-Deleting or purging a member runs `VACUUM FULL members`, so the row's ciphertext leaves the
-table's data files at once (tested). Postgres's write-ahead log can still hold it until the WAL
-segment is recycled, and the data key is the store's key, so this is not yet crypto-shredding.
-That residue is `docs/threat-model.md` Q3, still open for #13.
+Deleting or purging a member runs `VACUUM FULL members`, then retires the write-ahead log
+(`wal_recycle` off, `pg_switch_wal()`, `CHECKPOINT`), so the row's ciphertext leaves both the
+table's data files and the WAL at once (tested against in-memory PGlite; the browser's IndexedDB
+layer underneath may keep residue until it compacts). The data key is still the store's key,
+so this is not yet per-record crypto-shredding. See `docs/retention.md`.
 
 ## Public site deployments
 

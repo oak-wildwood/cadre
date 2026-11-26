@@ -150,6 +150,27 @@ describe('PGliteRepository', () => {
     )
   })
 
+  it.each([
+    ['delete', (repo: PGliteRepository, id: string) => repo.delete(id)],
+    ['purgeExpired', (repo: PGliteRepository) => repo.purgeExpired(new Date('2031-01-01'))],
+  ])('leaves no copy of the ciphertext in the WAL after %s', async (_name, remove) => {
+    const db = new PGlite()
+    const repo = makeRepo({ db })
+    const created = await repo.create({ ...ada, expiresAt: new Date('2030-01-01') })
+    const { rows } = await db.query<{ notes_enc: Uint8Array }>(
+      'SELECT notes_enc FROM members WHERE id = $1',
+      [created.id],
+    )
+    const ciphertext = Buffer.from(rows[0]!.notes_enc)
+    // Positive control: the WAL really holds the bytes before the removal.
+    expect(filesHolding(await dump(db), ciphertext).some((f) => f.includes('pg_wal'))).toBe(true)
+
+    await remove(repo, created.id)
+
+    // No manual CHECKPOINT here: the repository itself must have cleaned up.
+    expect(filesHolding(await dump(db), ciphertext)).toEqual([])
+  })
+
   it('pages through back-to-back creates in insertion order, with no repeats', async () => {
     const repo = makeRepo()
     const ids: string[] = []

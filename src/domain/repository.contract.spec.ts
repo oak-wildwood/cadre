@@ -146,6 +146,61 @@ export function describeRepositoryContract(factory: () => LedgerRepository): voi
       })
     })
 
+    describe('retention', () => {
+      it('has no default retention until one is set', async () => {
+        expect(await repo.getDefaultRetentionDays()).toBeNull()
+        expect(
+          (await repo.create({ ...makeNewMember(), expiresAt: undefined })).expiresAt,
+        ).toBeNull()
+      })
+
+      it('gives a member created without expiresAt the org default', async () => {
+        await repo.setDefaultRetentionDays(30)
+        const before = Date.now()
+        const member = await repo.create({ ...makeNewMember(), expiresAt: undefined })
+        const after = Date.now()
+
+        expect(await repo.getDefaultRetentionDays()).toBe(30)
+        const thirtyDays = 30 * 86_400_000
+        expect(member.expiresAt!.getTime()).toBeGreaterThanOrEqual(before + thirtyDays)
+        expect(member.expiresAt!.getTime()).toBeLessThanOrEqual(after + thirtyDays)
+      })
+
+      it('keeps an explicit expiresAt, and null still means never', async () => {
+        await repo.setDefaultRetentionDays(30)
+        const explicit = new Date('2030-01-01T00:00:00.000Z')
+
+        expect((await repo.create(makeNewMember({ expiresAt: explicit }))).expiresAt).toEqual(
+          explicit,
+        )
+        expect((await repo.create(makeNewMember({ expiresAt: null }))).expiresAt).toBeNull()
+      })
+
+      it('does not rewrite existing members when the default changes', async () => {
+        const existing = await repo.create(makeNewMember({ expiresAt: null }))
+        await repo.setDefaultRetentionDays(1)
+
+        expect((await repo.read(existing.id))!.expiresAt).toBeNull()
+      })
+
+      it('clears the default with null and rejects a non-positive or fractional one', async () => {
+        await repo.setDefaultRetentionDays(7)
+        await repo.setDefaultRetentionDays(null)
+        expect(await repo.getDefaultRetentionDays()).toBeNull()
+
+        await expect(repo.setDefaultRetentionDays(0)).rejects.toThrow()
+        await expect(repo.setDefaultRetentionDays(1.5)).rejects.toThrow()
+      })
+
+      it('purges a member once its inherited expiry has passed', async () => {
+        await repo.setDefaultRetentionDays(1)
+        const member = await repo.create({ ...makeNewMember(), expiresAt: undefined })
+
+        expect((await repo.purgeExpired(new Date(Date.now() + 2 * 86_400_000))).purged).toBe(1)
+        expect(await repo.read(member.id)).toBeNull()
+      })
+    })
+
     describe('findByBlindIndex', () => {
       it('matches a normalized value regardless of case or surrounding whitespace', async () => {
         const match = await repo.create(makeNewMember({ displayName: '  Ada Lovelace  ' }))
@@ -313,10 +368,29 @@ class InMemoryRepository implements LedgerRepository {
   private nextId = 1
   private nextSeq = 0
 
+  private retentionDays: number | null = null
+
+  async getDefaultRetentionDays(): Promise<number | null> {
+    return this.retentionDays
+  }
+
+  async setDefaultRetentionDays(days: number | null): Promise<void> {
+    if (days !== null && (!Number.isSafeInteger(days) || days < 1)) {
+      throw new RangeError('invalid retention')
+    }
+    this.retentionDays = days
+  }
+
   async create(input: NewMember): Promise<Member> {
     const id = String(this.nextId++)
     const now = new Date()
-    const member: Member = { ...input, id, createdAt: now, updatedAt: now }
+    const expiresAt =
+      input.expiresAt !== undefined
+        ? input.expiresAt
+        : this.retentionDays === null
+          ? null
+          : new Date(now.getTime() + this.retentionDays * 86_400_000)
+    const member: Member = { ...input, expiresAt, id, createdAt: now, updatedAt: now }
     this.members.set(id, member)
     this.sequence.set(id, this.nextSeq++)
     return { ...member }
