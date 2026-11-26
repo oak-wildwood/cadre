@@ -81,6 +81,7 @@ export class MemberNotFoundError extends Error {
 export class PGliteRepository implements LedgerRepository {
   private readonly keyRing: KeyRing
   private readonly exportKdf: KdfParams | undefined
+  private readonly db: PGlite
   private readonly opened: Promise<PGlite>
 
   /**
@@ -91,6 +92,7 @@ export class PGliteRepository implements LedgerRepository {
     this.keyRing = options.keyRing
     this.exportKdf = options.exportKdf
     const db = options.db ?? new PGlite(options.dataDir)
+    this.db = db
     const migrations = options.migrations ?? BUNDLED_MIGRATIONS
     this.opened = migrate(async (sql) => {
       const results = await db.exec(sql)
@@ -105,10 +107,11 @@ export class PGliteRepository implements LedgerRepository {
     await this.opened
   }
 
+  /** Closes the database, even if opening it failed. */
   async close(): Promise<void> {
-    const db = await this.opened
-    if (!db.closed) {
-      await db.close()
+    await this.opened.catch(() => {})
+    if (!this.db.closed) {
+      await this.db.close()
     }
   }
 
@@ -327,7 +330,7 @@ export class PGliteRepository implements LedgerRepository {
       ...SENSITIVE_FIELD_NAMES.map((f) => encrypted[f]),
     ]
     for (const field of BLIND_INDEXED_FIELDS) {
-      const value = input[field]
+      const value = input[field] ?? null
       columns.push(blindIndexColumn(field))
       values.push(value === null ? null : await blindIndex(this.keyRing, field, value))
     }

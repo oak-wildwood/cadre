@@ -51,7 +51,7 @@ describe('PGliteRepository', () => {
     expiresAt: null,
   }
 
-  it('bundles both migrations and runs them on open', async () => {
+  it('bundles every migration and runs them on open', async () => {
     const db = new PGlite()
     const repo = makeRepo({ db })
     await repo.ready()
@@ -177,6 +177,29 @@ describe('PGliteRepository', () => {
       sooner,
       later,
     ])
+  })
+
+  it('closes the database even when opening it failed', async () => {
+    const db = new PGlite()
+    const repo = new PGliteRepository({
+      keyRing,
+      db,
+      migrations: [{ version: 1, name: 'broken', sql: 'SELECT * FROM no_such_table' }],
+    })
+
+    await expect(repo.ready()).rejects.toThrow()
+    await repo.close()
+    expect(db.closed).toBe(true)
+  })
+
+  it('treats an absent optional field like null', async () => {
+    const repo = makeRepo()
+    const { email: _email, ...withoutEmail } = ada
+    void _email
+
+    const created = await repo.create(withoutEmail as typeof ada)
+
+    expect(created.email).toBeNull()
   })
 
   it('refuses to import into a store that already has members', async () => {
