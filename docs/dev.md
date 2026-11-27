@@ -44,15 +44,46 @@ fast. The defaults themselves are exercised once, in `packages/keyslot/test/para
 
 ## Layout
 
-- `src/app/` — Vue components. `App.vue` is the app root and currently _is_ the whole app: a
-  static, public landing page (what Cadre is, who it's for, and how to run it). It has no
-  store/repository access, no auth and collects nothing from visitors. Once real app views
-  exist, this content moves behind routing rather than being replaced by it.
-- `src/domain/` — types and the storage-repository interface.
+- `src/app/` — the public landing page (`App.vue`, entry `index.html` → `src/main.ts`). Static:
+  no store access, no auth, collects nothing from visitors. Also holds the retention timer
+  (`retention.ts`) and `PurgeNotice.vue`, which the ledger uses.
+- `src/ledger/` — the ledger UI (entry `app.html` → `src/ledger/main.ts`): unlock, member list and
+  search, add/edit, settings, export/import. See "The ledger UI" below.
+- `src/domain/` — types, the storage-repository interface and `LedgerStore` (create, unlock,
+  lock).
 - `src/storage/` — repository implementations (PGlite, Postgres).
 - `src/crypto/` — Cadre glue around `keyslot`: member fields to ciphertext and back.
 - `packages/keyslot/` — the standalone key-slot and field-encryption package (npm workspace,
   Apache-2.0). It imports nothing from `src/`.
+
+## The ledger UI
+
+Run `npm run dev` and open <http://localhost:5173/app.html>. The first visit creates a store and
+asks for its passphrase twice; later visits unlock it. **Lock** drops the keys from memory and
+closes the store.
+
+- **Only in development for now.** `app.html` is its own Vite entry, and `npm run build` bundles
+  `index.html` only, so the ledger never reaches the GitHub Pages or Vercel preview builds
+  (record 0004). `src/ledger/buildIsolation.spec.ts` runs a real production build and fails if
+  any of the ledger ends up in it. Building the ledger for self-hosting is later work.
+- **Storage access.** Components get a `LedgerStore` (`src/domain/LedgerStore.ts`, implemented by
+  `src/storage/PGliteStore.ts`) to create or unlock the store, and from then on talk only to the
+  `LedgerRepository` it hands back (AGENTS.md rule 5).
+- **No PII outside memory.** There is no router: which screen and which member are open is
+  in-memory state, so nothing reaches the URL or history. The UI writes nothing to
+  `localStorage`, `sessionStorage` or cookies, and never logs. Error messages are fixed strings
+  chosen by error class; an error's own text is never shown. Member inputs have
+  `autocomplete="off"`. After a run, DevTools → Application should show only the
+  `/pglite/cadre` IndexedDB database (ciphertext, see below) and empty Local and Session storage.
+- **Unlock errors** read the same for a wrong passphrase, a damaged store and a missing one
+  (record 0007, decision 8). Only "this device can't run the encryption" is reported apart.
+- **Search** is exact match on name or email through the blind index (record 0008); the search
+  box says so.
+- **Retention.** Unlocking runs `purgeExpired` and starts the hourly timer; the form pre-fills
+  `expires_at` from the org default and stores it as the end of the chosen local day.
+- **Not done yet:** changing the passphrase (#65, it must rotate the key, record 0007 decision
+  4); running Argon2id in a Web Worker, so the page stays responsive during the second or so
+  unlock takes; masking email and phone until revealed.
 
 ## The browser store
 
