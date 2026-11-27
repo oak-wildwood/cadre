@@ -25,7 +25,7 @@ describe('demo roster in a production build', () => {
         const path = join(file.parentPath, file.name)
         expect(path).not.toMatch(/demo/i)
         expect(readFileSync(path, 'utf8'), path).not.toMatch(
-          /Ashgrove|Load demo roster|loadDemoRoster|example\.invalid/,
+          /Soledad Brother|Harpers Ferry|Load demo roster|loadDemoRoster|example\.invalid/,
         )
       }
     } finally {

@@ -28,7 +28,10 @@ async function load() {
 <template>
   <p>
     <button type="button" class="btn" :disabled="busy" @click="load">Load demo roster</button>
-    <span class="muted"> Twelve invented people for a fictional reporter. Local only.</span>
+    <span class="muted">
+      Sixteen historical figures for a historian's research roster, with fake contact details. Local
+      only.</span
+    >
   </p>
   <p v-if="error" class="error" role="alert">{{ error }}</p>
 </template>
