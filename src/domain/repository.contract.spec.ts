@@ -246,7 +246,7 @@ export function describeRepositoryContract(factory: () => LedgerRepository): voi
             expiresAt: new Date('2099-01-01T00:00:00.000Z'),
           }),
         )
-        const sparse = await repo.create(makeNewMember({ displayName: '' }))
+        const sparse = await repo.create(makeNewMember({ displayName: 'Sparse Fixture' }))
 
         const bundle = await repo.exportEncrypted({ passphrase: EXPORT_PASSPHRASE })
         const fresh = factory()

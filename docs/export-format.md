@@ -134,15 +134,15 @@ UTF-8 JSON (invalid UTF-8 is rejected), one object with exactly these keys:
 }
 ```
 
-| Key                               | Type                    | Notes                             |
-| --------------------------------- | ----------------------- | --------------------------------- |
-| `exportedAt`                      | timestamp               | When the export ran               |
-| `members`                         | array of member objects | No two with the same `id`         |
-| `id`                              | string                  | Lowercase UUID; kept on import    |
-| `displayName`                     | string                  | May be empty                      |
-| `email`, `phone`, `role`, `notes` | string or `null`        | Plaintext; re-encrypted on import |
-| `createdAt`, `updatedAt`          | timestamp               | Kept on import                    |
-| `expiresAt`                       | timestamp or `null`     | `null` means "never expires"      |
+| Key                               | Type                    | Notes                              |
+| --------------------------------- | ----------------------- | ---------------------------------- |
+| `exportedAt`                      | timestamp               | When the export ran                |
+| `members`                         | array of member objects | No two with the same `id`          |
+| `id`                              | string                  | Lowercase UUID; kept on import     |
+| `displayName`                     | string                  | Must not normalize to empty (0008) |
+| `email`, `phone`, `role`, `notes` | string or `null`        | Plaintext; re-encrypted on import  |
+| `createdAt`, `updatedAt`          | timestamp               | Kept on import                     |
+| `expiresAt`                       | timestamp or `null`     | `null` means "never expires"       |
 
 A timestamp is exactly the form JavaScript's `Date.prototype.toISOString` writes, in UTC, and
 a real calendar date: `YYYY-MM-DDTHH:MM:SS.sssZ` for years 0000 to 9999, and `±YYYYYY-…` (a

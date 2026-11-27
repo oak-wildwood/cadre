@@ -11,6 +11,10 @@ folder holds only the Cadre-specific glue around it:
   `src/domain/sensitiveFields.ts`) into ciphertexts and back, binding each to
   `members / <member UUID> / <field name>`. Member ids are made in the browser with
   `newMemberId()` before encrypting, because the id is part of the AAD.
+- `blindIndex.ts` computes equality-only blind indexes: HMAC-SHA-256 under the blind-index
+  subkey over `field \0 normalized value`. The normalization table is in its doc comment and in
+  `blindIndex.spec.ts`; the reasoning and the leakage it accepts are in
+  `docs/decisions/0008-blind-index.md`.
 - `unlockStore.ts` unlocks with the settings stored in the slot and, if they are below the
   current Argon2id defaults, returns a re-wrapped slot for the caller to save.
 - `exportBundle.ts` seals and opens version 1 export bundles: a fresh key slot under the export

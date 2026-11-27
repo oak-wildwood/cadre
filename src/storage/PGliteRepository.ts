@@ -7,9 +7,9 @@
  * returns. Filtering and ordering use structural columns only.
  */
 import { PGlite, type Transaction } from '@electric-sql/pglite'
-import type { KdfParams, KeyRing } from 'keyslot'
+import { UnsupportedFormatError, type KdfParams, type KeyRing } from 'keyslot'
 
-import { blindIndex } from '../crypto/blindIndex'
+import { BLIND_INDEX_RULES_VERSION, blindIndex } from '../crypto/blindIndex'
 import { openBundle, sealBundle } from '../crypto/exportBundle'
 import {
   decryptMemberFields,
@@ -99,7 +99,9 @@ export class PGliteRepository implements LedgerRepository {
     this.opened = migrate(async (sql) => {
       const results = await db.exec(sql)
       return results[results.length - 1] ?? { rows: [] }
-    }, migrations).then(() => db)
+    }, migrations)
+      .then(() => this.syncBlindIndexRules(db))
+      .then(() => db)
     // Keep an unawaited open failure from being reported as unhandled; callers still see it.
     this.opened.catch(() => {})
   }
@@ -167,10 +169,7 @@ export class PGliteRepository implements LedgerRepository {
         const value = patch[field]
         set(encryptedColumn(field), await encryptMemberField(this.keyRing, id, field, value))
         if (isBlindIndexed(field)) {
-          set(
-            blindIndexColumn(field),
-            value === null ? null : await blindIndex(this.keyRing, field, value),
-          )
+          set(blindIndexColumn(field), await this.indexFor(field, value))
         }
       }
       if (patch.expiresAt !== undefined) {
@@ -272,6 +271,10 @@ export class PGliteRepository implements LedgerRepository {
     }
     const db = await this.opened
     const index = await blindIndex(this.keyRing, field, value)
+    if (index === null) {
+      // A blank search matches nothing, not every member with a blank field (record 0008).
+      return []
+    }
     const { rows } = await db.query<Row>(
       `SELECT ${SELECT_COLUMNS} FROM members WHERE ${blindIndexColumn(field)} = $1
        ORDER BY created_at, seq`,
@@ -375,6 +378,10 @@ export class PGliteRepository implements LedgerRepository {
     if (input.displayName == null) {
       throw new TypeError('displayName is required')
     }
+    const indexes: unknown[] = []
+    for (const field of BLIND_INDEXED_FIELDS) {
+      indexes.push(await this.indexFor(field, input[field] ?? null))
+    }
     const encrypted = await encryptMemberFields(this.keyRing, id, pickSensitive(input))
     const columns = ['id', 'expires_at', ...ENC_COLUMNS]
     const values: unknown[] = [
@@ -382,11 +389,8 @@ export class PGliteRepository implements LedgerRepository {
       checkedDate(input.expiresAt ?? null),
       ...SENSITIVE_FIELD_NAMES.map((f) => encrypted[f]),
     ]
-    for (const field of BLIND_INDEXED_FIELDS) {
-      const value = input[field] ?? null
-      columns.push(blindIndexColumn(field))
-      values.push(value === null ? null : await blindIndex(this.keyRing, field, value))
-    }
+    columns.push(...BLIND_INDEXED_FIELDS.map(blindIndexColumn))
+    values.push(...indexes)
     const placeholders = values.map((_, i) => `$${i + 1}`)
     if (timestamps) {
       columns.push('created_at', 'updated_at')
@@ -404,6 +408,78 @@ export class PGliteRepository implements LedgerRepository {
       values,
     )
     return rows[0]!
+  }
+
+  /** A field's index, or `null` for a missing value or one that normalizes to empty. */
+  private async indexOrNull(
+    field: BlindIndexedField,
+    value: string | null,
+  ): Promise<Uint8Array | null> {
+    return value === null ? null : blindIndex(this.keyRing, field, value)
+  }
+
+  /**
+   * The index to write for a field. `displayName` is required and its column is NOT NULL, so a
+   * name that normalizes to empty is rejected here, before anything is written.
+   */
+  private async indexFor(
+    field: BlindIndexedField,
+    value: string | null,
+  ): Promise<Uint8Array | null> {
+    const index = await this.indexOrNull(field, value)
+    if (index === null && field === 'displayName') {
+      throw new TypeError('displayName is required')
+    }
+    return index
+  }
+
+  /**
+   * Record 0008, decision 5: if the store's indexes were built under other normalization rules
+   * (or unknown ones, from before the version was recorded), recompute every index and record
+   * this build's version, in one transaction. A store from a newer build is refused rather than
+   * searched with rules that don't match its indexes.
+   */
+  private async syncBlindIndexRules(db: PGlite): Promise<void> {
+    await db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ v: number | null }>(
+        `SELECT blind_index_rules_version AS v FROM settings FOR UPDATE`,
+      )
+      const stored = rows[0]?.v ?? null
+      if (stored === BLIND_INDEX_RULES_VERSION) {
+        return
+      }
+      if (stored !== null && stored > BLIND_INDEX_RULES_VERSION) {
+        throw new UnsupportedFormatError()
+      }
+      const members = await tx.query<Row>(`SELECT ${SELECT_COLUMNS} FROM members`)
+      for (const row of members.rows) {
+        const member = await this.toMember(row)
+        const assignments: string[] = []
+        const values: unknown[] = []
+        for (const field of BLIND_INDEXED_FIELDS) {
+          const index = await this.indexOrNull(field, member[field] ?? null)
+          if (index === null && field === 'displayName') {
+            // Written before names had to normalize to something; the column is NOT NULL, so
+            // keep the old index rather than refuse to open the store.
+            continue
+          }
+          values.push(index)
+          assignments.push(`${blindIndexColumn(field)} = $${values.length}`)
+        }
+        values.push(member.id)
+        await tx.query(
+          `UPDATE members SET ${assignments.join(', ')} WHERE id = $${values.length}`,
+          values,
+        )
+      }
+      await tx.query(
+        `INSERT INTO settings (id, blind_index_rules_version) VALUES (true, $1)
+         ON CONFLICT (id) DO UPDATE
+         SET blind_index_rules_version = EXCLUDED.blind_index_rules_version,
+             updated_at = now()`,
+        [BLIND_INDEX_RULES_VERSION],
+      )
+    })
   }
 
   private async toMember(row: Row): Promise<Member> {
