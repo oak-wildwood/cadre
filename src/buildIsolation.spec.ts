@@ -19,12 +19,15 @@ describe('production build', () => {
     const names = files.map((f) => f.slice(outDir.length + 1))
     expect(names).toContain('index.html')
     expect(names).not.toContain('app.html')
+    // PGlite's wasm and data files are the clearest sign of storage code, even if minified.
+    expect(names.filter((n) => /\.(wasm|data)$/.test(n))).toEqual([])
 
     const text = files
       .filter((f) => /\.(html|js|css)$/.test(f))
       .map((f) => readFileSync(f, 'utf8'))
       .join('\n')
     expect(text).toContain('What it is') // the landing page is there
+    expect(text).toContain('--color-bg') // and its shared theme tokens
     for (const marker of ['key_slots', 'PGlite', 'findByBlindIndex', 'Unlock']) {
       expect(text, marker).not.toContain(marker)
     }
