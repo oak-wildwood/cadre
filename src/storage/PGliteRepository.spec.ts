@@ -12,6 +12,7 @@ import type { ListQuery, Page } from '../domain/listQuery'
 import type { Member } from '../domain/member'
 import { describeRepositoryContract } from '../domain/repository.contract.spec'
 import { SENSITIVE_FIELD_NAMES, encryptedColumn } from '../domain/sensitiveFields'
+import { BundleVersionError, ExportPassphraseTooShortError } from '../crypto/exportBundle'
 import { BUNDLED_MIGRATIONS } from './bundledMigrations'
 import { PGliteRepository } from './PGliteRepository'
 
@@ -356,6 +357,54 @@ describe('PGliteRepository', () => {
     await target.importEncrypted(bundle, { passphrase: 'export passphrase, not real' })
 
     expect(await target.read(created.id)).toEqual(created)
+  })
+
+  it('writes no sensitive value into the bundle in plaintext', async () => {
+    const source = makeRepo()
+    await source.create(ada)
+    const bundle = await source.exportEncrypted({ passphrase: 'export passphrase, not real' })
+
+    const hay = Buffer.from(bundle).toString('latin1')
+    for (const value of Object.values(ada)) {
+      expect(hay).not.toContain(value)
+    }
+  })
+
+  it('rejects a short export passphrase with ExportPassphraseTooShortError', async () => {
+    await expect(makeRepo().exportEncrypted({ passphrase: 'too short' })).rejects.toBeInstanceOf(
+      ExportPassphraseTooShortError,
+    )
+  })
+
+  it('rejects a bundle with a bumped format version before touching the store', async () => {
+    const source = makeRepo()
+    await source.create(ada)
+    const bundle = await source.exportEncrypted({ passphrase: 'export passphrase, not real' })
+    bundle[7] = 2
+
+    const target = makeRepo()
+    await expect(
+      target.importEncrypted(bundle, { passphrase: 'export passphrase, not real' }),
+    ).rejects.toBeInstanceOf(BundleVersionError)
+    expect((await target.list()).items).toEqual([])
+  })
+
+  it('re-encrypts imported rows under the receiving store', async () => {
+    const sourceDb = new PGlite()
+    const targetDb = new PGlite()
+    const source = makeRepo({ db: sourceDb })
+    const created = await source.create(ada)
+    const bundle = await source.exportEncrypted({ passphrase: 'export passphrase, not real' })
+    const target = makeRepo({ db: targetDb })
+    await target.importEncrypted(bundle, { passphrase: 'export passphrase, not real' })
+
+    const query = `SELECT ${encryptedColumn('displayName')} AS v FROM members WHERE id = $1`
+    const [a, b] = await Promise.all(
+      [sourceDb, targetDb].map(
+        async (db) => (await db.query<{ v: Uint8Array }>(query, [created.id])).rows[0]!.v,
+      ),
+    )
+    expect(Buffer.from(a!).equals(Buffer.from(b!))).toBe(false)
   })
 })
 

@@ -17,5 +17,8 @@ folder holds only the Cadre-specific glue around it:
   `docs/decisions/0008-blind-index.md`.
 - `unlockStore.ts` unlocks with the settings stored in the slot and, if they are below the
   current Argon2id defaults, returns a re-wrapped slot for the caller to save.
+- `exportBundle.ts` seals and opens version 1 export bundles: a fresh key slot under the export
+  passphrase plus one field value holding the payload (record 0010, `docs/export-format.md`).
+  The payload itself is `src/domain/exportPayload.ts`.
 
 A forgotten passphrase means the data is gone. That is intended; there is no recovery path.

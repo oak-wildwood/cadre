@@ -8,8 +8,8 @@ encrypts through `src/crypto/memberFields.ts` and writes `*_bidx` with `src/cryp
 Blind indexes follow record 0008: equality only, per-field normalization, no index for a value
 that normalizes to empty. On open, the repository compares the store's
 `settings.blind_index_rules_version` with `BLIND_INDEX_RULES_VERSION` and rebuilds every index if
-they differ (refusing a store from newer rules). The export bundle format in
-`src/crypto/interimExportBundle.ts` is still interim (#14).
+they differ (refusing a store from newer rules). Export and import use the version 1 bundle in
+`src/crypto/exportBundle.ts`, specified in `docs/export-format.md` (record 0010).
 
 ## Migrations
 

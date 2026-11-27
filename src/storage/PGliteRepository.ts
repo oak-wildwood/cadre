@@ -10,7 +10,7 @@ import { PGlite, type Transaction } from '@electric-sql/pglite'
 import { UnsupportedFormatError, type KdfParams, type KeyRing } from 'keyslot'
 
 import { BLIND_INDEX_RULES_VERSION, blindIndex } from '../crypto/blindIndex'
-import { openBundle, sealBundle } from '../crypto/interimExportBundle'
+import { openBundle, sealBundle } from '../crypto/exportBundle'
 import {
   decryptMemberFields,
   encryptMemberField,
@@ -19,12 +19,14 @@ import {
   type EncryptedValues,
   type SensitiveValues,
 } from '../crypto/memberFields'
-import type {
-  ExportOptions,
-  ImportOptions,
-  ImportResult,
-  LedgerRepository,
-  PurgeResult,
+import { decodeExportPayload, encodeExportPayload } from '../domain/exportPayload'
+import {
+  StoreNotEmptyError,
+  type ExportOptions,
+  type ImportOptions,
+  type ImportResult,
+  type LedgerRepository,
+  type PurgeResult,
 } from '../domain/LedgerRepository'
 import type { ListOrderField, ListQuery, Page } from '../domain/listQuery'
 import type { Member, MemberId, MemberPatch, NewMember } from '../domain/member'
@@ -319,30 +321,52 @@ export class PGliteRepository implements LedgerRepository {
   }
 
   async exportEncrypted(opts: ExportOptions): Promise<Uint8Array> {
+    const now = checkedDate(opts.now ?? new Date())!
     const db = await this.opened
     const { rows } = await db.query<Row>(
-      `SELECT ${SELECT_COLUMNS} FROM members ORDER BY created_at, seq`,
+      `SELECT ${SELECT_COLUMNS} FROM members
+       WHERE expires_at IS NULL OR expires_at > $1
+       ORDER BY created_at, seq`,
+      [now],
     )
     const members = await Promise.all(rows.map((row) => this.toMember(row)))
-    const payload = new TextEncoder().encode(JSON.stringify({ members }))
-    return sealBundle(payload, opts.passphrase, this.exportKdf)
+    const payload = encodeExportPayload({ exportedAt: new Date(), members })
+    try {
+      return await sealBundle(payload, opts.passphrase, this.exportKdf)
+    } finally {
+      payload.fill(0)
+    }
   }
 
-  /** Replace-only for now (#14 decides merge semantics): refuses a store that has members. */
+  /** Replace-only (record 0010, decision 5). Every row is re-encrypted under this store's keys. */
   async importEncrypted(bundle: Uint8Array, opts: ImportOptions): Promise<ImportResult> {
+    const now = checkedDate(opts.now ?? new Date())!
     const payload = await openBundle(bundle, opts.passphrase)
-    const members = parsePayload(payload)
+    let members: Member[]
+    try {
+      members = decodeExportPayload(payload).members
+    } finally {
+      payload.fill(0)
+    }
+    const live = members.filter((m) => m.expiresAt === null || m.expiresAt > now)
     const db = await this.opened
+    let replaced = 0
     await db.transaction(async (tx) => {
       const { rows } = await tx.query<Row>(`SELECT 1 FROM members LIMIT 1`)
       if (rows.length) {
-        throw new Error('Import needs an empty store')
+        if (opts.replace !== true) {
+          throw new StoreNotEmptyError()
+        }
+        replaced = (await tx.query(`DELETE FROM members`)).affectedRows ?? 0
       }
-      for (const member of members) {
+      for (const member of live) {
         await this.insert(tx, member.id, member, member)
       }
     })
-    return { imported: members.length }
+    if (replaced) {
+      await reclaim(db)
+    }
+    return { imported: live.length, skippedExpired: members.length - live.length }
   }
 
   private async insert(
@@ -521,17 +545,4 @@ function checkedDate(value: Date | null): Date | null {
     throw new TypeError('Expected a valid Date')
   }
   return value
-}
-
-const DATE_FIELDS = new Set(['createdAt', 'updatedAt', 'expiresAt'])
-
-function parsePayload(payload: Uint8Array): Member[] {
-  const parsed = JSON.parse(
-    new TextDecoder('utf-8', { fatal: true }).decode(payload),
-    (key, value) => (DATE_FIELDS.has(key) && typeof value === 'string' ? new Date(value) : value),
-  ) as { members?: unknown }
-  if (!Array.isArray(parsed.members)) {
-    throw new Error('Export bundle has no member list')
-  }
-  return parsed.members as Member[]
 }
