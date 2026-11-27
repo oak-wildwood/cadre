@@ -19,8 +19,9 @@ expiry set and takes the org default, and the rest have an explicit expiry.
 
 ## Walkthrough
 
-1. `npm ci && npm run dev`, open the printed URL. In a fresh browser profile, choose a passphrase
-   (15+ characters) to create the store. On the empty member list, choose **Load demo roster**.
+1. `npm ci && npm run dev`, then open `/app.html` on the printed URL (for example
+   `http://localhost:5173/app.html`; the root is only the landing page). In a fresh browser
+   profile, choose a passphrase (15+ characters) to create the store. On the empty member list, choose **Load demo roster**.
    It is offered only while the store is empty and refuses otherwise. You should see 12 people.
 2. Search for `wren.ashgrove@example.invalid` or `Wren Ashgrove`: one match. Search `Wren`: no
    exact match. Search is equality-only on name and email.
