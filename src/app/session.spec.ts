@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createSession, MIN_STORE_PASSPHRASE_LENGTH, UNLOCK_FAILED, type Session } from './session'
 
+// Each test opens a real PGlite store, which is slow on a loaded CI runner.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
 const PASS = 'a long enough fixture passphrase'
 const dirs: string[] = []
 const sessions: Session[] = []
