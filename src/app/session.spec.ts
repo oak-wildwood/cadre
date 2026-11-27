@@ -3,7 +3,7 @@ import { MIN_KDF_PARAMS } from 'keyslot'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createSession, MIN_STORE_PASSPHRASE_LENGTH, UNLOCK_FAILED, type Session } from './session'
 
@@ -44,7 +44,7 @@ describe('session', () => {
   })
 
   it('lock wipes the keys and repository; the same passphrase unlocks the data again', async () => {
-    const { session, dir } = fresh()
+    const { session } = fresh()
     await session.init()
     await session.create(PASS)
     await session.repository.value!.create({
@@ -63,7 +63,6 @@ describe('session', () => {
     expect(await session.unlock(PASS)).toBe(true)
     const page = await session.repository.value!.list()
     expect(page.items.map((m) => m.displayName)).toEqual(['Ada Example'])
-    expect(dir).toBeTruthy()
   })
 
   it('a wrong passphrase stays locked with the one generic message', async () => {
@@ -96,12 +95,16 @@ describe('session', () => {
     expect(session.error.value).toBe(UNLOCK_FAILED)
   })
 
-  it('does not put the passphrase or a member name into the error message', async () => {
+  it('never puts a passphrase from a failing dependency into the message', async () => {
     const { session } = fresh()
     await session.init()
     await session.create(PASS)
     await session.lock()
-    await session.unlock('wrong wrong wrong wrong')
-    expect(session.error.value).not.toContain('wrong wrong')
+    const { KeySlotStore } = await import('../storage/keySlotStore')
+    const spy = vi.spyOn(KeySlotStore.prototype, 'readSlot').mockRejectedValue(new Error(PASS))
+
+    expect(await session.unlock(PASS)).toBe(false)
+    spy.mockRestore()
+    expect(session.error.value).not.toContain(PASS)
   })
 })

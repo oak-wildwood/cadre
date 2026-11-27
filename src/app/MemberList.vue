@@ -16,7 +16,10 @@ const searched = ref<string | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
+let latest = 0
+
 async function load(more = false) {
+  const token = ++latest
   loading.value = true
   error.value = null
   try {
@@ -27,6 +30,7 @@ async function load(more = false) {
         props.repository.findByBlindIndex('email', searched.value),
       ])
       const seen = new Set<string>()
+      if (token !== latest) return
       members.value = [...byName, ...byEmail].filter((m) => !seen.has(m.id) && seen.add(m.id))
       nextCursor.value = null
     } else {
@@ -36,13 +40,14 @@ async function load(more = false) {
         orderDirection: 'desc',
         cursor: more ? nextCursor.value : null,
       })
+      if (token !== latest) return
       members.value = more ? [...members.value, ...page.items] : page.items
       nextCursor.value = page.nextCursor
     }
   } catch {
-    error.value = 'Could not load members.'
+    if (token === latest) error.value = 'Could not load members.'
   } finally {
-    loading.value = false
+    if (token === latest) loading.value = false
   }
 }
 

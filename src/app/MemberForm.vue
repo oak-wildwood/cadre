@@ -22,6 +22,8 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
 const confirmDelete = ref(false)
+const deleting = ref(false)
+const defaultApplied = ref(false)
 const form = reactive({
   displayName: '',
   email: '',
@@ -43,6 +45,7 @@ onMounted(async () => {
       const days = await props.repository.getDefaultRetentionDays()
       if (days !== null) {
         form.never = false
+        defaultApplied.value = true
         form.expires = toDateInput(new Date(Date.now() + days * 86_400_000))
       }
     } else {
@@ -108,12 +111,15 @@ async function onSave() {
 }
 
 async function onDelete() {
-  if (props.memberId === null) return
+  if (props.memberId === null || deleting.value) return
+  deleting.value = true
   try {
     await props.repository.delete(props.memberId)
     emit('deleted')
   } catch {
     error.value = 'Could not delete this member.'
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -146,7 +152,9 @@ async function onDelete() {
           <input v-model="form.expires" type="date" :disabled="form.never" />
         </label>
         <p class="muted">
-          Pre-filled from the organization default. Expired records are deleted automatically.
+          <template v-if="isNew && defaultApplied"
+            >Pre-filled from the organization default. </template
+          >Expired records are deleted automatically.
         </p>
       </fieldset>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -164,7 +172,9 @@ async function onDelete() {
           </button>
           <span v-else role="group" aria-label="Confirm delete">
             Delete this member permanently?
-            <button type="button" class="btn danger" @click="onDelete">Yes, delete</button>
+            <button type="button" class="btn danger" :disabled="deleting" @click="onDelete">
+              Yes, delete
+            </button>
             <button type="button" class="btn" @click="confirmDelete = false">No</button>
           </span>
         </template>

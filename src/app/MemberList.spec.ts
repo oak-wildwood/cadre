@@ -64,4 +64,22 @@ describe('MemberList', () => {
 
     expect(repository.list).toHaveBeenCalledTimes(2)
   })
+
+  it('a slow earlier load cannot overwrite a newer search', async () => {
+    let release!: (value: unknown) => void
+    const slow = new Promise((resolve) => (release = resolve))
+    const repository = repo({
+      list: vi.fn().mockReturnValue(slow),
+      findByBlindIndex: vi.fn().mockResolvedValue([member('2', 'Bo')]),
+    })
+    const wrapper = mount(MemberList, { props: { repository, dataVersion: 0 } })
+    await wrapper.find('input[type="search"]').setValue('Bo')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    release({ items: [member('1', 'Ada')], nextCursor: null })
+    await flushPromises()
+
+    expect(wrapper.find('tbody').text()).toContain('Bo')
+    expect(wrapper.find('tbody').text()).not.toContain('Ada')
+  })
 })

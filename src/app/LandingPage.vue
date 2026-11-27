@@ -6,7 +6,7 @@ const repoUrl = 'https://github.com/oak-wildwood/cadre'
 <template>
   <main class="landing">
     <header class="hero">
-      <h1>Cadre</h1>
+      <h1 tabindex="-1">Cadre</h1>
       <span class="mark" aria-hidden="true"></span>
       <p class="tagline">
         A self-hostable, local-first membership ledger for organizations whose member list gets
