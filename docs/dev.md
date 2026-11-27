@@ -44,10 +44,16 @@ fast. The defaults themselves are exercised once, in `packages/keyslot/test/para
 
 ## Layout
 
-- `src/app/` — Vue components. `App.vue` is the app root and currently _is_ the whole app: a
-  static, public landing page (what Cadre is, who it's for, and how to run it). It has no
-  store/repository access, no auth and collects nothing from visitors. Once real app views
-  exist, this content moves behind routing rather than being replaced by it.
+- `src/app/` — Vue components. `App.vue` is the shell: Unlock (creates the store on first run),
+  Members (list and exact-match search), Add/Edit member, Settings (default retention, encrypted
+  export, import with a replace confirmation) and a Lock button. `LandingPage.vue` is the
+  static public page, reachable from the Unlock screen. `session.ts` owns the unlock lifecycle:
+  it reads the key slot (`src/storage/keySlotStore.ts`), unlocks, builds the `PGliteRepository`,
+  starts retention (`retention.ts`) and, on lock, closes the database and wipes the key ring.
+  Views get a `LedgerRepository` and nothing else (AGENTS.md rule 5). No view logs, uses route
+  params, or writes to `localStorage`/`sessionStorage`; screens are state-based, not routed, so a
+  member's id never reaches the URL. Not built yet: changing the ledger passphrase, and
+  masked-by-default phone/email.
 - `src/domain/` — types and the storage-repository interface.
 - `src/storage/` — repository implementations (PGlite, Postgres).
 - `src/crypto/` — Cadre glue around `keyslot`: member fields to ciphertext and back.

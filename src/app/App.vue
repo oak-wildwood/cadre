@@ -1,73 +1,103 @@
 <script setup lang="ts">
-const repoUrl = 'https://github.com/oak-wildwood/cadre'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+
+import LandingPage from './LandingPage.vue'
+import MemberForm from './MemberForm.vue'
+import MemberList from './MemberList.vue'
+import PurgeNotice from './PurgeNotice.vue'
+import { createSession, type Session } from './session'
+import SettingsView from './SettingsView.vue'
+import UnlockView from './UnlockView.vue'
+
+const props = defineProps<{ session?: Session }>()
+const session = props.session ?? createSession()
+
+type View = { name: 'list' } | { name: 'member'; id: string | null } | { name: 'settings' }
+const view = ref<View>({ name: 'list' })
+const about = ref(false)
+const initError = ref(false)
+const root = ref<HTMLElement | null>(null)
+
+onMounted(() => {
+  session.init().catch(() => (initError.value = true))
+})
+// Closing the tab is not a lock we can rely on, but at least stop the timer and drop the keys.
+onUnmounted(() => void session.close())
+
+// Move focus to the new screen's heading so keyboard and screen-reader users land on it.
+watch(
+  [view, () => session.unlocked.value, about],
+  async () => {
+    await nextTick()
+    root.value?.querySelector<HTMLElement>('h1')?.focus()
+  },
+  { flush: 'post' },
+)
+
+async function lock() {
+  await session.lock()
+  view.value = { name: 'list' }
+}
 </script>
 
 <template>
-  <main class="landing">
-    <header class="hero">
-      <h1>Cadre</h1>
-      <span class="mark" aria-hidden="true"></span>
-      <p class="tagline">
-        A self-hostable, local-first membership ledger for organizations whose member list gets
-        people evicted, fired, deported or arrested if it leaks.
-      </p>
-    </header>
-
-    <section>
-      <h2>What it is</h2>
-      <p>
-        Cadre stores member names, contact info, roles and notes. All of it is treated as sensitive:
-        encrypted before it reaches storage, and deleted on a schedule you choose. It runs on your
-        own infrastructure — nobody else ever holds a copy of your data or the keys to read it.
-      </p>
-    </section>
-
-    <section>
-      <h2>Who it's for</h2>
-      <ul>
-        <li>Mutual aid groups</li>
-        <li>Tenant unions</li>
-        <li>Organizing committees</li>
-        <li>Small newsrooms</li>
-      </ul>
-      <p>Any small organization whose member list is dangerous in the wrong hands.</p>
-    </section>
-
-    <section>
-      <h2>Project stage</h2>
-      <p>
-        Cadre is pre-alpha: scoped, not yet usable. Development happens in the open, phase by phase
-        — see the
-        <a :href="`${repoUrl}/blob/main/docs/roadmap.md`">roadmap</a>
-        for what's done and what's next.
-      </p>
-    </section>
-
-    <section>
-      <h2>Learn more</h2>
-      <ul>
-        <li><a :href="repoUrl">Source code</a></li>
-        <li><a :href="`${repoUrl}#readme`">README</a></li>
-        <li><a :href="`${repoUrl}#threat-model-summary`">Threat model</a></li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>Run it yourself</h2>
-      <p>
-        Cadre isn't a hosted service and there's nothing to sign up for here. It's software you run
-        on your own infrastructure. See
-        <a :href="`${repoUrl}/blob/main/docs/dev.md`">docs/dev.md</a>
-        to build and run it today; a dedicated self-hosting guide is planned for a later phase.
-      </p>
-    </section>
-  </main>
+  <div ref="root" class="shell">
+    <template v-if="session.unlocked.value && session.repository.value">
+      <header class="row nav">
+        <strong>Cadre</strong>
+        <nav class="row grow" aria-label="Main">
+          <button type="button" class="btn" @click="view = { name: 'list' }">Members</button>
+          <button type="button" class="btn" @click="view = { name: 'settings' }">Settings</button>
+        </nav>
+        <button type="button" class="btn" @click="lock">Lock</button>
+      </header>
+      <MemberList
+        v-if="view.name === 'list'"
+        :repository="session.repository.value"
+        :data-version="session.dataVersion.value"
+        @open="(id) => (view = { name: 'member', id })"
+        @add="view = { name: 'member', id: null }"
+      />
+      <MemberForm
+        v-else-if="view.name === 'member'"
+        :key="view.id ?? 'new'"
+        :repository="session.repository.value"
+        :member-id="view.id"
+        @saved="view = { name: 'list' }"
+        @deleted="view = { name: 'list' }"
+        @cancel="view = { name: 'list' }"
+      />
+      <SettingsView
+        v-else
+        :repository="session.repository.value"
+        @imported="view = { name: 'list' }"
+      />
+      <PurgeNotice
+        :purged="session.retention.notice.value"
+        @dismiss="session.retention.dismiss()"
+      />
+    </template>
+    <template v-else-if="about">
+      <LandingPage />
+      <p class="narrow"><button type="button" class="link" @click="about = false">Back</button></p>
+    </template>
+    <p v-else-if="initError" class="narrow error" role="alert">Could not open the local store.</p>
+    <p v-else-if="session.hasStore.value === null" class="narrow" role="status">Loading…</p>
+    <UnlockView
+      v-else
+      :has-store="session.hasStore.value"
+      :busy="session.busy.value"
+      :error="session.error.value"
+      @submit="(p) => (session.hasStore.value ? session.unlock(p) : session.create(p))"
+      @about="about = true"
+    />
+  </div>
 </template>
 
 <style>
-/* Unscoped on purpose: App.vue is the entire app today, so these tokens and
-   resets are the page's, not just this component's. A later design pass can
-   promote this block to its own stylesheet without changing the values. */
+/* Unscoped on purpose: these tokens, resets and shared control styles are the whole app's
+   (landing page and ledger screens alike). A later design pass can promote this block to its own
+   stylesheet without changing the values. */
 :root {
   --color-bg: #0b1220;
   --color-fg: #eef2f8;
@@ -114,83 +144,151 @@ body {
   border-radius: 999px;
   border: 3px solid var(--color-bg);
 }
-</style>
 
-<style scoped>
-.landing {
-  max-width: 36rem;
+.narrow {
+  max-width: 28rem;
   margin: 0 auto;
-  padding: 4.5rem 1.5rem 6rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
-  line-height: 1.6;
+  padding: 3rem 1.5rem;
 }
 
-.hero {
-  margin-bottom: 3rem;
+.shell main,
+.shell > section {
+  max-width: 52rem;
 }
 
-h1 {
-  margin: 0;
-  font-size: clamp(2.75rem, 5vw + 1.25rem, 4.25rem);
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  color: var(--color-fg);
-}
-
-.mark {
+.field {
   display: block;
-  width: 2.75rem;
-  height: 3px;
-  margin: 1.5rem 0;
-  border-radius: 999px;
-  background: var(--color-accent);
+  margin: 0 0 1rem;
+  border: 0;
+  padding: 0;
 }
 
-.tagline {
-  margin: 0;
-  max-width: 34ch;
-  font-size: 1.1875rem;
+.field > span,
+legend {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
   color: var(--color-fg-muted);
 }
 
-section {
-  margin-top: 3rem;
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='tel'],
+input[type='date'],
+input[type='search'],
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
 }
 
-h2 {
-  margin: 0 0 1rem;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.btn {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn.primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.btn.danger {
+  border-color: #e5484d;
+  color: #ff8589;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.grow {
+  flex: 1;
+}
+
+.inline {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.muted {
+  color: var(--color-fg-muted);
+  font-size: 0.875rem;
+}
+
+.error {
+  color: #ff8589;
+}
+
+.badge {
+  margin-left: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  color: var(--color-accent);
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  color: var(--color-accent);
+  letter-spacing: 0.06em;
 }
 
-p {
-  margin: 0;
+.callout {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5484d;
+  border-radius: 0.5rem;
 }
 
-ul {
-  margin: 0 0 1rem;
-  padding-left: 1.25rem;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-li + li {
-  margin-top: 0.35rem;
+table {
+  width: 100%;
+  margin-bottom: 1rem;
+  border-collapse: collapse;
 }
 
-a {
-  color: var(--color-accent);
-  text-decoration-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
-  text-underline-offset: 3px;
-  transition:
-    color 0.15s ease,
-    text-decoration-color 0.15s ease;
-}
-
-a:hover {
-  color: var(--color-accent-strong);
-  text-decoration-color: var(--color-accent-strong);
+th,
+td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
 }
 </style>
