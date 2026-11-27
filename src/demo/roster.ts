@@ -1,12 +1,13 @@
 /**
  * The demo roster: a historian's research contacts, made of people who have died. Dev-only (see
  * `loadDemoRoster`). Nobody living may appear here, and contact details are reserved or obviously
- * fake: emails end in `@example.invalid`, phones sit in the 555-0100 to 555-0199 block. Notes are
- * short public-record facts, nothing invented about anyone. The seed-rules test checks the
+ * fake: emails end in `@example.invalid`, phones sit in the 555-0100 to 555-0199 block. Emails are neutral
+ * `demoNN@` placeholders, not guesses at anyone's real address. Notes are short public-record
+ * facts, nothing invented about anyone, and every entry carries a year of death. The seed-rules test checks the
  * contact values, because a real-looking fixture is a leak waiting to be copied (AGENTS.md rule 2).
  *
- * Projects are not records of their own (that would be a schema change). A person's first notes
- * line is `Case: <name>`; someone in a second project has an `Also in: <name>` line.
+ * Cases (research projects) are not records of their own (that would be a schema change). A person's first notes
+ * line is `Case: <name>`; someone in a second case has an `Also in: <name>` line.
  */
 export const DEMO_ROLES = ['organizer', 'theorist', 'leader', 'writer', 'adversary'] as const
 export type DemoRole = (typeof DEMO_ROLES)[number]
@@ -22,6 +23,8 @@ export const DEMO_CASES = [
 
 export interface DemoPerson {
   displayName: string
+  /** Year of death. Everyone here must be dead; the seed-rules test checks it is present. */
+  died: number
   email: string | null
   phone: string | null
   role: DemoRole
@@ -35,7 +38,8 @@ const day = (days: number) => ({ days })
 export const DEMO_ROSTER: readonly DemoPerson[] = [
   {
     displayName: 'John Brown',
-    email: 'john.brown@example.invalid',
+    died: 1859,
+    email: 'demo01@example.invalid',
     phone: '+1-555-0101',
     role: 'organizer',
     notes:
@@ -44,7 +48,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Nat Turner',
-    email: 'nat.turner@example.invalid',
+    died: 1831,
+    email: 'demo02@example.invalid',
     phone: '+1-555-0102',
     role: 'leader',
     notes:
@@ -53,7 +58,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Fred Hampton',
-    email: 'fred.hampton@example.invalid',
+    died: 1969,
+    email: 'demo03@example.invalid',
     phone: '+1-555-0103',
     role: 'organizer',
     notes:
@@ -62,7 +68,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Huey Newton',
-    email: 'huey.newton@example.invalid',
+    died: 1989,
+    email: 'demo04@example.invalid',
     phone: '+1-555-0104',
     role: 'leader',
     notes: 'Case: Black Panther Party\nCo-founded the party in Oakland in 1966.',
@@ -70,7 +77,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'George Jackson',
-    email: 'george.jackson@example.invalid',
+    died: 1971,
+    email: 'demo05@example.invalid',
     phone: null,
     role: 'writer',
     notes:
@@ -79,7 +87,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Kwame Ture',
-    email: 'kwame.ture@example.invalid',
+    died: 1998,
+    email: 'demo06@example.invalid',
     phone: '+1-555-0106',
     role: 'organizer',
     notes:
@@ -88,7 +97,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Walter Rodney',
-    email: 'walter.rodney@example.invalid',
+    died: 1980,
+    email: 'demo07@example.invalid',
     phone: '+1-555-0107',
     role: 'theorist',
     notes:
@@ -97,7 +107,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Rosa Luxemburg',
-    email: 'rosa.luxemburg@example.invalid',
+    died: 1919,
+    email: 'demo08@example.invalid',
     phone: '+1-555-0108',
     role: 'theorist',
     notes:
@@ -106,7 +117,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Che Guevara',
-    email: 'che.guevara@example.invalid',
+    died: 1967,
+    email: 'demo09@example.invalid',
     phone: '+1-555-0109',
     role: 'leader',
     notes:
@@ -115,7 +127,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Fidel Castro',
-    email: 'fidel.castro@example.invalid',
+    died: 2016,
+    email: 'demo10@example.invalid',
     phone: null,
     role: 'leader',
     notes:
@@ -124,7 +137,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Malcolm X',
-    email: 'malcolm.x@example.invalid',
+    died: 1965,
+    email: 'demo11@example.invalid',
     phone: '+1-555-0111',
     role: 'organizer',
     notes:
@@ -133,7 +147,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Haydée Santamaría',
-    email: 'haydee.santamaria@example.invalid',
+    died: 1980,
+    email: 'demo12@example.invalid',
     phone: '+1-555-0112',
     role: 'organizer',
     notes:
@@ -142,7 +157,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'J. Edgar Hoover',
-    email: 'j.edgar.hoover@example.invalid',
+    died: 1972,
+    email: 'demo13@example.invalid',
     phone: '+1-555-0113',
     role: 'adversary',
     notes:
@@ -151,7 +167,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Fulgencio Batista',
-    email: 'fulgencio.batista@example.invalid',
+    died: 1973,
+    email: 'demo14@example.invalid',
     phone: '+1-555-0114',
     role: 'adversary',
     notes:
@@ -160,7 +177,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Waldemar Pabst',
-    email: 'waldemar.pabst@example.invalid',
+    died: 1970,
+    email: 'demo15@example.invalid',
     phone: '+1-555-0115',
     role: 'adversary',
     notes:
@@ -169,7 +187,8 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
   },
   {
     displayName: 'Heinrich Himmler',
-    email: 'heinrich.himmler@example.invalid',
+    died: 1945,
+    email: 'demo16@example.invalid',
     phone: '+1-555-0116',
     role: 'adversary',
     notes:

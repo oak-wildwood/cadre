@@ -19,23 +19,29 @@ afterEach(async () => {
 })
 
 describe('demo roster seed rules', () => {
-  it('has sixteen distinct people, all long dead, with display-only names', () => {
+  it('has sixteen distinct people, each with a recorded year of death', () => {
     expect(DEMO_ROSTER).toHaveLength(16)
     const names = DEMO_ROSTER.map((p) => p.displayName)
     expect(new Set(names).size).toBe(names.length)
+    for (const p of DEMO_ROSTER) {
+      expect(Number.isInteger(p.died)).toBe(true)
+      expect(p.died).toBeLessThanOrEqual(2016)
+    }
     for (const name of names) expect(name).toMatch(/^\p{Lu}[\p{L}.]*( \p{Lu}[\p{L}.]*)+$/u)
   })
 
   it('uses only reserved emails and 555-01xx phones', () => {
     for (const p of DEMO_ROSTER) {
-      if (p.email !== null) expect(p.email).toMatch(/^[a-z.]+@example\.invalid$/)
+      if (p.email !== null) expect(p.email).toMatch(/^demo\d\d@example\.invalid$/)
       if (p.phone !== null) expect(p.phone).toMatch(/^\+1-555-01\d\d$/)
     }
   })
 
   it('keeps contact details and URLs out of the free text', () => {
     for (const p of DEMO_ROSTER) {
-      expect(p.notes).not.toMatch(/@|https?:|www\.|\d{3}[-. ]?\d{4}/)
+      // Digit runs of three or more are only allowed as a bare four-digit year (1000-2099).
+      expect(p.notes).not.toMatch(/\b(?!1\d{3}\b|20\d{2}\b)\d{3,}/)
+      expect(p.notes).not.toMatch(/@|https?:|www\./)
     }
   })
 
@@ -79,7 +85,7 @@ describe('loadDemoRoster', () => {
     expect(defaulted?.expiresAt?.getTime()).toBeLessThan(now.getTime() + 31 * 86_400_000)
 
     // Exact-match search works on the seeded rows; the two short-lived ones purge later.
-    expect(await repo.findByBlindIndex('email', 'JOHN.BROWN@example.invalid')).toHaveLength(1)
+    expect(await repo.findByBlindIndex('email', 'DEMO01@example.invalid')).toHaveLength(1)
     expect(await repo.findByBlindIndex('displayName', 'John')).toEqual([])
     expect((await repo.purgeExpired(new Date(now.getTime() + 61_000))).purged).toBe(2)
   })
