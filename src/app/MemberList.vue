@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, onMounted, ref, watch } from 'vue'
 
 import type { LedgerRepository } from '../domain/LedgerRepository'
 import type { Member } from '../domain/member'
@@ -15,6 +15,11 @@ const query = ref('')
 const searched = ref<string | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+// The demo loader is dev-only. `import.meta.env.DEV` is a build-time constant, so a production
+// build folds this to `null` and drops the loader and the roster with it (record 0004).
+const DemoLoader = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('../demo/DemoLoader.vue'))
+  : null
 
 let latest = 0
 
@@ -100,6 +105,7 @@ watch(
       <thead>
         <tr>
           <th scope="col">Name</th>
+          <th scope="col">Role</th>
           <th scope="col">Expires</th>
           <th scope="col">Updated</th>
         </tr>
@@ -111,11 +117,17 @@ watch(
               {{ member.displayName }}
             </button>
           </td>
+          <td>{{ member.role ?? '' }}</td>
           <td>{{ formatDate(member.expiresAt) }}</td>
           <td>{{ formatDate(member.updatedAt) }}</td>
         </tr>
       </tbody>
     </table>
+    <DemoLoader
+      v-if="DemoLoader && !searched && !loading && !members.length && !error"
+      :repository="repository"
+      @loaded="load()"
+    />
     <button v-if="nextCursor" type="button" class="btn" :disabled="loading" @click="load(true)">
       Load more
     </button>

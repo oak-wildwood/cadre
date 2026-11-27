@@ -54,6 +54,7 @@ fast. The defaults themselves are exercised once, in `packages/keyslot/test/para
   params, or writes to `localStorage`/`sessionStorage`; screens are state-based, not routed, so a
   member's id never reaches the URL. Not built yet: changing the ledger passphrase, and
   masked-by-default phone/email.
+- `src/demo/` — the dev-only demo roster and its loader button; see [`demo.md`](demo.md).
 - `src/domain/` — types and the storage-repository interface.
 - `src/storage/` — repository implementations (PGlite, Postgres).
 - `src/crypto/` — Cadre glue around `keyslot`: member fields to ciphertext and back.
