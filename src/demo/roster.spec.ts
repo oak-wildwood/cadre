@@ -30,7 +30,6 @@ describe('demo roster seed rules', () => {
     for (const p of DEMO_ROSTER) {
       if (p.email !== null) expect(p.email).toMatch(/^[a-z.]+@example\.invalid$/)
       if (p.phone !== null) expect(p.phone).toMatch(/^\+1-555-01\d\d$/)
-      expect(Number(p.phone?.slice(-2) ?? 0)).toBeLessThan(100)
     }
   })
 
@@ -96,5 +95,17 @@ describe('loadDemoRoster', () => {
     })
     await expect(loadDemoRoster(repo)).rejects.toBeInstanceOf(DemoStoreNotEmptyError)
     expect((await repo.list({ limit: 50 })).items).toHaveLength(1)
+  })
+
+  it('puts the store back to empty if writing fails partway', async () => {
+    const repo = makeRepo()
+    const create = repo.create.bind(repo)
+    let calls = 0
+    repo.create = (input) => {
+      if (++calls === 5) return Promise.reject(new Error('quota'))
+      return create(input)
+    }
+    await expect(loadDemoRoster(repo)).rejects.toThrow('quota')
+    expect((await repo.list({ limit: 50 })).items).toHaveLength(0)
   })
 })
