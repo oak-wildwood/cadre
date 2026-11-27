@@ -19,11 +19,11 @@ afterEach(async () => {
 })
 
 describe('demo roster seed rules', () => {
-  it('has about twelve distinct, invented-looking people', () => {
-    expect(DEMO_ROSTER).toHaveLength(12)
+  it('has sixteen distinct people, all long dead, with display-only names', () => {
+    expect(DEMO_ROSTER).toHaveLength(16)
     const names = DEMO_ROSTER.map((p) => p.displayName)
     expect(new Set(names).size).toBe(names.length)
-    for (const name of names) expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+    for (const name of names) expect(name).toMatch(/^\p{Lu}\p{L}+( \p{Lu}\p{L}*)+$/u)
   })
 
   it('uses only reserved emails and 555-01xx phones', () => {
@@ -35,7 +35,7 @@ describe('demo roster seed rules', () => {
 
   it('keeps contact details and URLs out of the free text', () => {
     for (const p of DEMO_ROSTER) {
-      expect(p.notes).not.toMatch(/@|https?:|www\.|\d{3}/)
+      expect(p.notes).not.toMatch(/@|https?:|www\.|\d{3}[-. ]?\d{4}/)
     }
   })
 
@@ -64,23 +64,23 @@ describe('loadDemoRoster', () => {
     const repo = makeRepo()
     await repo.setDefaultRetentionDays(30)
     const now = new Date()
-    expect(await loadDemoRoster(repo, now)).toBe(12)
+    expect(await loadDemoRoster(repo, now)).toBe(16)
 
     const { items } = await repo.list({ limit: 50 })
-    expect(items).toHaveLength(12)
-    expect(items.find((m) => m.displayName === 'Wren Ashgrove')?.role).toBe('source')
+    expect(items).toHaveLength(16)
+    expect(items.find((m) => m.displayName === 'John Brown')?.role).toBe('organizer')
 
     const soon = items.filter(
       (m) => m.expiresAt && m.expiresAt.getTime() - now.getTime() === 60_000,
     )
     expect(soon).toHaveLength(2)
-    const defaulted = items.find((m) => m.displayName === 'Petra Vandersloot')
+    const defaulted = items.find((m) => m.displayName === 'Fidel Castro')
     expect(defaulted?.expiresAt?.getTime()).toBeGreaterThan(now.getTime() + 29 * 86_400_000)
     expect(defaulted?.expiresAt?.getTime()).toBeLessThan(now.getTime() + 31 * 86_400_000)
 
     // Exact-match search works on the seeded rows; the two short-lived ones purge later.
-    expect(await repo.findByBlindIndex('email', 'WREN.ASHGROVE@example.invalid')).toHaveLength(1)
-    expect(await repo.findByBlindIndex('displayName', 'Wren')).toEqual([])
+    expect(await repo.findByBlindIndex('email', 'JOHN.BROWN@example.invalid')).toHaveLength(1)
+    expect(await repo.findByBlindIndex('displayName', 'John')).toEqual([])
     expect((await repo.purgeExpired(new Date(now.getTime() + 61_000))).purged).toBe(2)
   })
 
