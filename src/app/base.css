@@ -15,6 +15,8 @@ html {
 
 body {
   margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
+  line-height: 1.6;
   background: var(--color-bg);
   color: var(--color-fg);
 }
@@ -51,6 +53,29 @@ body {
   max-width: 28rem;
   margin: 0 auto;
   padding: 3rem 1.5rem;
+}
+
+.shell {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 4rem;
+}
+
+.shell .nav {
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.shell .nav > nav {
+  margin-bottom: 0;
+}
+
+.shell h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
 }
 
 .shell main,
@@ -192,4 +217,8 @@ td {
   padding: 0.5rem;
   border-bottom: 1px solid var(--color-border);
   text-align: left;
+}
+
+.row > .field {
+  margin-bottom: 0;
 }
