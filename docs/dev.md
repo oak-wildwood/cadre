@@ -12,7 +12,7 @@ npm ci
 
 | Command              | Does                                                                             |
 | -------------------- | -------------------------------------------------------------------------------- |
-| `npm run dev`        | Start the Vite dev server.                                                       |
+| `npm run dev`        | Start the Vite dev server (the ledger is at `/app.html`).                        |
 | `npm run build`      | Type-check (`npm run typecheck`) then build for production into `dist/`.         |
 | `npm test`           | Run the Vitest suite once.                                                       |
 | `npm run test:watch` | Run Vitest in watch mode.                                                        |
@@ -93,6 +93,11 @@ comments the preview URL, so brochure changes can be reviewed visually before me
 deploys of `main` are disabled on purpose (`vercel.json`), so Vercel and GitHub Pages never both
 claim to be "production" for the same branch. Preview builds carry the same scope limit as the
 GitHub Pages build: only the brochure/landing content, not the functional ledger UI.
+
+That boundary is structural: `index.html` mounts only `src/landing.ts` (the landing page), and
+the ledger is a second page, `app.html` → `src/main.ts`, which `vite build` does not bundle. It
+is reachable only through `npm run dev` (open `/app.html`). `src/buildIsolation.spec.ts` runs a
+real production build and fails if `app.html` or any ledger or storage code shows up in `dist`.
 
 See [`docs/decisions/0004-public-site-hosting.md`](decisions/0004-public-site-hosting.md) for
 the reasoning.
