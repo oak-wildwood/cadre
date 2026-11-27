@@ -82,4 +82,30 @@ describe('MemberList', () => {
     expect(wrapper.find('tbody').text()).toContain('Bo')
     expect(wrapper.find('tbody').text()).not.toContain('Ada')
   })
+
+  it('offers the dev-only demo loader on an empty store, and reloads after it runs', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+      .mockResolvedValueOnce({ items: [], nextCursor: null }) // loadDemoRoster's emptiness check
+      .mockResolvedValue({ items: [member('1', 'Ada')], nextCursor: null })
+    const repository = repo({ list, create: vi.fn().mockResolvedValue(member('9', 'x')) })
+    const wrapper = mount(MemberList, { props: { repository, dataVersion: 0 } })
+    await flushPromises()
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Load demo roster'))
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Load demo roster')!
+      .trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('tbody').exists()).toBe(true))
+    expect(repository.create).toHaveBeenCalledTimes(12)
+    expect(wrapper.text()).not.toContain('Load demo roster')
+  })
+
+  it('does not offer the demo loader when members exist', async () => {
+    const wrapper = mount(MemberList, { props: { repository: repo(), dataVersion: 0 } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Load demo roster')
+  })
 })
