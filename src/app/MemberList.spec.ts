@@ -99,7 +99,7 @@ describe('MemberList', () => {
       .find((b) => b.text() === 'Load demo roster')!
       .trigger('click')
     await vi.waitFor(() => expect(wrapper.find('tbody').exists()).toBe(true))
-    expect(repository.create).toHaveBeenCalledTimes(12)
+    expect(repository.create).toHaveBeenCalledTimes(16)
     expect(wrapper.text()).not.toContain('Load demo roster')
   })
 

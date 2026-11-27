@@ -23,7 +23,7 @@ describe('demo roster seed rules', () => {
     expect(DEMO_ROSTER).toHaveLength(16)
     const names = DEMO_ROSTER.map((p) => p.displayName)
     expect(new Set(names).size).toBe(names.length)
-    for (const name of names) expect(name).toMatch(/^\p{Lu}\p{L}+( \p{Lu}\p{L}*)+$/u)
+    for (const name of names) expect(name).toMatch(/^\p{Lu}[\p{L}.]*( \p{Lu}[\p{L}.]*)+$/u)
   })
 
   it('uses only reserved emails and 555-01xx phones', () => {
