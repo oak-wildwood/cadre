@@ -162,7 +162,7 @@ export const DEMO_ROSTER: readonly DemoPerson[] = [
     phone: '+1-555-0113',
     role: 'adversary',
     notes:
-      'Case: Black Panther Party\nFBI director from 1924 to 1972. His COINTELPRO program targeted the Panthers and other groups.',
+      'Case: Black Panther Party\nLed the Bureau of Investigation, later the FBI, from 1924 to 1972. His COINTELPRO program targeted the Panthers and other groups.',
     expiry: day(180),
   },
   {

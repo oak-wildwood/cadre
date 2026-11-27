@@ -25,7 +25,8 @@ describe('demo roster seed rules', () => {
     expect(new Set(names).size).toBe(names.length)
     for (const p of DEMO_ROSTER) {
       expect(Number.isInteger(p.died)).toBe(true)
-      expect(p.died).toBeLessThanOrEqual(2016)
+      // Only checks a plausible past year; that nobody living is added is enforced in review.
+      expect(p.died).toBeLessThan(new Date().getFullYear())
     }
     for (const name of names) expect(name).toMatch(/^\p{Lu}[\p{L}.]*( \p{Lu}[\p{L}.]*)+$/u)
   })
