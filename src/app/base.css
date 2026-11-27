@@ -72,15 +72,10 @@ body {
   margin-bottom: 0;
 }
 
-.shell h1 {
+.shell > :not(.landing) h1 {
   margin: 0 0 1rem;
   font-size: 1.5rem;
   line-height: 1.2;
-}
-
-.shell main,
-.shell > section {
-  max-width: 52rem;
 }
 
 .field {

@@ -70,8 +70,6 @@ const repoUrl = 'https://github.com/oak-wildwood/cadre'
   max-width: 36rem;
   margin: 0 auto;
   padding: 4.5rem 1.5rem 6rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
-  line-height: 1.6;
 }
 
 .hero {
